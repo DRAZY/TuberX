@@ -193,6 +193,7 @@ onMounted(() => {
   document.addEventListener('contextmenu', onContextMenu)
   unbinds.push(listen('ui:selectAll', () => queue.selectAll()))
   unbinds.push(listen('ui:about', () => ui.open('settings', 'about')))
+  unbinds.push(listen('ui:export', (kind) => void window.tuberx.exportLinks(kind)))
   unbinds.push(listen('power:countdown', (p) => (power.value = p.seconds > 0 ? p : null)))
   window.addEventListener('dragover', onDragOver)
   window.addEventListener('dragleave', onDragLeave)

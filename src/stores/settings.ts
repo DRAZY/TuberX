@@ -39,6 +39,11 @@ export const useSettingsStore = defineStore('settings', () => {
     if (next) tools.value = next
   }
 
+  async function setLoginPassword(password: string): Promise<void> {
+    const next = await guard(() => window.tuberx.settings.setLoginPassword(password))
+    if (next) settings.value = next
+  }
+
   async function updateEngine(): Promise<void> {
     if (engineUpdating.value) return
     engineUpdating.value = true
@@ -78,6 +83,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     appInfo,
     loadAppInfo,
+    setLoginPassword,
     settings,
     tools,
     loaded,

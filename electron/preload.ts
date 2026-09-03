@@ -35,6 +35,7 @@ const api: TuberXApi = {
     pickDestination: () => invoke('settings:pickDestination'),
     pickCookiesFile: () => invoke('settings:pickCookiesFile'),
     clearCookiesFile: () => invoke('settings:clearCookiesFile'),
+    setLoginPassword: (password) => invoke('settings:setLoginPassword', password),
   },
   tools: {
     status: () => invoke('tools:status'),
@@ -46,6 +47,7 @@ const api: TuberXApi = {
   power: {
     cancel: () => invoke('power:cancel'),
   },
+  exportLinks: (kind) => invoke('export:links', kind),
   shell: {
     reveal: (path) => invoke('shell:reveal', path),
     open: (path) => invoke('shell:open', path),

@@ -171,6 +171,14 @@ export interface Settings {
   notifyOnComplete: boolean
   /** What happens once the last download in the queue finishes. */
   onQueueDone: 'none' | 'open-folder' | 'sleep' | 'shutdown'
+  /** Site login (Vimeo, Dailymotion, Bandcamp, …; YouTube refuses password logins and is skipped). The password lives in the OS keychain. */
+  loginUsername: string
+  /** Read-only mirror for the UI: whether a password is stored. Set through settings.setLoginPassword. */
+  hasLoginPassword: boolean
+  /** Password for a single protected video (Vimeo "password" videos). */
+  videoPassword: string
+  /** Browser identity yt-dlp presents; phones sometimes get formats or pages desktops do not. */
+  userAgent: 'default' | 'desktop' | 'ios' | 'android'
   autoUpdateEngine: boolean
   /** Bumped when a default changes in a way existing installs should adopt. */
   settingsVersion: number
@@ -200,8 +208,12 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrentDownloads: 3,
   notifyOnComplete: true,
   onQueueDone: 'none',
+  loginUsername: '',
+  hasLoginPassword: false,
+  videoPassword: '',
+  userAgent: 'default',
   autoUpdateEngine: true,
-  settingsVersion: 7,
+  settingsVersion: 8,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -217,6 +229,7 @@ export interface MainEvents {
   'url:incoming': { url: string; later: boolean }
   'ui:selectAll': null
   'ui:about': null
+  'ui:export': 'queue' | 'later' | 'history'
   /** A sleep or shutdown is about to happen; the renderer shows the countdown with a Cancel. `seconds` 0 = cancelled. */
   'power:countdown': { action: 'sleep' | 'shutdown'; seconds: number }
   'toast': { kind: ToastKind; message: string }
@@ -275,6 +288,8 @@ export interface TuberXApi {
     pickDestination(): Promise<string | null>
     pickCookiesFile(): Promise<string | null>
     clearCookiesFile(): Promise<void>
+    /** Store (or clear, with '') the site-login password in the OS keychain. */
+    setLoginPassword(password: string): Promise<Settings>
   }
   tools: {
     status(): Promise<ToolStatus[]>
@@ -287,6 +302,8 @@ export interface TuberXApi {
     /** Stop a pending sleep or shutdown. */
     cancel(): Promise<void>
   }
+  /** Save a list as a text file of links (history adds the file path after a tab); resolves to the path or null when cancelled. */
+  exportLinks(kind: 'queue' | 'later' | 'history'): Promise<string | null>
   shell: {
     reveal(path: string): Promise<void>
     /** Open the file in its default app. */

@@ -49,6 +49,17 @@ const BROWSERS: { value: Settings['cookiesFromBrowser']; label: string }[] = [
 /** Free-text fields are edited locally and written on change, not on every keystroke. */
 const langs = ref(store.settings.subtitleLangs.join(', '))
 const proxy = ref(store.settings.proxy)
+const loginUsername = ref(store.settings.loginUsername)
+const loginPassword = ref('')
+const videoPassword = ref(store.settings.videoPassword)
+async function savePassword(): Promise<void> {
+  await store.setLoginPassword(loginPassword.value)
+  loginPassword.value = ''
+}
+async function clearPassword(): Promise<void> {
+  await store.setLoginPassword('')
+  loginPassword.value = ''
+}
 
 watch(
   () => store.settings.subtitleLangs,
@@ -379,6 +390,47 @@ function commitProxy(): void {
           hint="Mints the proof-of-origin tokens YouTube expects, so downloads work without a login. Needs jnn-pa.googleapis.com reachable on your network."
           @update:model-value="set('potHelper', $event)"
         />
+      </section>
+
+      <!-- Site login -->
+      <section class="border-b border-tx-border py-4">
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Site login</h3>
+        <p class="text-[10px] leading-snug text-tx-muted">
+          Optional. Used by sites that accept a username and password (Vimeo, Dailymotion, Bandcamp and others). YouTube does not, so it never
+          receives these; use a cookies file for YouTube. The password is kept in the system keychain.
+        </p>
+        <label class="mt-2 block text-[12px]">
+          Username or e-mail
+          <input v-model.trim="loginUsername" class="tx-field mt-1" type="text" autocomplete="off" spellcheck="false" @change="set('loginUsername', loginUsername)" />
+        </label>
+        <label class="mt-2 block text-[12px]">
+          Password
+          <div class="mt-1 flex items-center gap-2">
+            <input
+              v-model="loginPassword"
+              class="tx-field flex-1"
+              type="password"
+              autocomplete="new-password"
+              :placeholder="store.settings.hasLoginPassword ? '•••••••• (stored)' : ''"
+            />
+            <button type="button" class="tx-btn-ghost" :disabled="!loginPassword" @click="savePassword">Save</button>
+            <button v-if="store.settings.hasLoginPassword" type="button" class="tx-btn-ghost" @click="clearPassword">Clear</button>
+          </div>
+        </label>
+        <label class="mt-2 block text-[12px]">
+          Video password (password-protected Vimeo videos)
+          <input v-model.trim="videoPassword" class="tx-field mt-1" type="text" autocomplete="off" spellcheck="false" @change="set('videoPassword', videoPassword)" />
+        </label>
+        <label class="mt-2 block text-[12px]">
+          Identify as
+          <select class="tx-field mt-1" :value="store.settings.userAgent" @change="set('userAgent', ($event.target as HTMLSelectElement).value as Settings['userAgent'])">
+            <option value="default">yt-dlp default</option>
+            <option value="desktop">Desktop Chrome</option>
+            <option value="ios">iPhone Safari</option>
+            <option value="android">Android Chrome</option>
+          </select>
+        </label>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">Some sites hand phones different pages or formats; change this only when a site misbehaves.</p>
       </section>
 
       <!-- Engine -->

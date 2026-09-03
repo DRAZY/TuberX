@@ -23,6 +23,9 @@ async function sendAll(): Promise<void> {
   await later.sendAllToQueue()
   await queue.refresh()
 }
+function exportLinks(): void {
+  void window.tuberx.exportLinks('later')
+}
 </script>
 
 <template>
@@ -34,9 +37,12 @@ async function sendAll(): Promise<void> {
 
     <div class="flex shrink-0 items-center justify-between gap-2 border-b border-tx-border px-4 py-2">
       <span class="text-[11px] text-tx-muted">{{ later.count }} saved</span>
-      <button type="button" class="tx-btn-ghost" :disabled="!later.count" @click="sendAll">
-        Send all to queue
-      </button>
+      <span class="flex items-center gap-2">
+        <button type="button" class="tx-btn-ghost" :disabled="!later.count" title="Save the links as a text file" @click="exportLinks">Export…</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!later.count" @click="sendAll">
+          Send all to queue
+        </button>
+      </span>
     </div>
 
     <div v-if="later.loading" class="flex items-center justify-center py-8">

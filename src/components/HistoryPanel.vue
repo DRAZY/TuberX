@@ -21,6 +21,9 @@ async function clearAll(): Promise<void> {
   confirmingClear.value = false
   await history.clear()
 }
+function exportLinks(): void {
+  void window.tuberx.exportLinks('history')
+}
 </script>
 
 <template>
@@ -39,8 +42,9 @@ async function clearAll(): Promise<void> {
           <button type="button" class="tx-btn-accent" @click="clearAll">Yes, clear</button>
         </div>
       </template>
+      <span v-else class="flex items-center gap-2">
+      <button type="button" class="tx-btn-ghost" :disabled="!history.count" title="Save links and file paths as a text file" @click="exportLinks">Export…</button>
       <button
-        v-else
         type="button"
         class="tx-btn-ghost"
         :disabled="!history.count"
@@ -48,6 +52,7 @@ async function clearAll(): Promise<void> {
       >
         Clear history
       </button>
+      </span>
     </div>
 
     <div v-if="history.loading" class="flex items-center justify-center py-8">

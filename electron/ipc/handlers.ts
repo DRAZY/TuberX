@@ -1,7 +1,7 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron'
 import { extractUrls } from '../../shared/urls'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { app } from 'electron'
@@ -10,6 +10,7 @@ import { urlKey } from '../../shared/urls'
 import type { TuberDb } from '../db/database'
 import { checkAllTools } from '../engine/tools'
 import { updateEngine } from '../engine/updater'
+import { hasSecret, setSecret } from '../secrets'
 import { fetchMetadata } from '../engine/ytdlp'
 import type { QueueManager } from '../queue/manager'
 import { getSettings, patchSettings } from '../settings'
@@ -167,6 +168,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
       { label: 'Paste link and download', enabled: hasLink, click: () => void pasteClipboard(true) },
       { type: 'separator' },
       { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => e.sender.send('ui:selectAll', null) },
+      { label: 'Export queue as text…', enabled: queue.list().length > 0, click: () => e.sender.send('ui:export', 'queue') },
       { type: 'separator' },
       { label: 'About TuberX', click: () => e.sender.send('ui:about', null) },
     )
@@ -238,11 +240,17 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   })
 
   // ---- settings ----
-  ipcMain.handle('settings:get', () => ({ ...getSettings(), destinations: db.listDestinations() }))
+  const withDerived = (s: Settings): Settings => ({ ...s, hasLoginPassword: hasSecret('loginPassword'), destinations: db.listDestinations() })
+  ipcMain.handle('settings:get', () => withDerived(getSettings()))
+  ipcMain.handle('settings:setLoginPassword', (_e, password: string) => {
+    setSecret('loginPassword', password ?? '')
+    return withDerived(getSettings())
+  })
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
+    delete (patch as Partial<Settings>).hasLoginPassword // derived, never stored
     const next = patchSettings(patch)
     if (patch.destination) db.touchDestination(patch.destination)
-    return { ...next, destinations: db.listDestinations() }
+    return withDerived(next)
   })
   ipcMain.handle('settings:pickDestination', async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
@@ -300,6 +308,27 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('shell:open', (_e, path: string) => void openFile(path))
   ipcMain.handle('shell:openWith', async (e, path: string) => openWith(path, BrowserWindow.fromWebContents(e.sender) ?? undefined))
   ipcMain.handle('power:cancel', () => cancelPowerAction())
+  ipcMain.handle('export:links', async (e, kind: 'queue' | 'later' | 'history') => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const lines =
+      kind === 'queue' ? queue.list().map((r) => r.media?.webpageUrl ?? r.url)
+      : kind === 'later' ? db.listLater().map((l) => l.url)
+      : db.listHistory().map((h) => `${h.url}\t${h.outputPath}`)
+    if (!lines.length) {
+      send('toast', { kind: 'info', message: 'Nothing to export' })
+      return null
+    }
+    const stamp = new Date().toISOString().slice(0, 10)
+    const res = await dialog.showSaveDialog(win!, {
+      title: `Export ${kind}`,
+      defaultPath: join(app.getPath('documents'), `TuberX ${kind} ${stamp}.txt`),
+      filters: [{ name: 'Text', extensions: ['txt'] }],
+    })
+    if (res.canceled || !res.filePath) return null
+    writeFileSync(res.filePath, lines.join('\n') + '\n', 'utf8')
+    send('toast', { kind: 'success', message: `Saved ${lines.length} link${lines.length === 1 ? '' : 's'}` })
+    return res.filePath
+  })
   ipcMain.handle('shell:openExternal', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) return shell.openExternal(url)
   })

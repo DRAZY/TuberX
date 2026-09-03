@@ -34,6 +34,11 @@ function migrate(s: Settings, from: number): Settings {
   if (from < 4) next.forceIpv4 = true
   if (from < 5 && next.mp3Bitrate === 192) next.mp3Bitrate = 320 // old default → new default; explicit other choices stay
   if (from < 7) next.onQueueDone = next.onQueueDone ?? 'none'
+  if (from < 8) {
+    next.loginUsername = next.loginUsername ?? ''
+    next.videoPassword = next.videoPassword ?? ''
+    next.userAgent = next.userAgent ?? 'default'
+  }
   next.settingsVersion = DEFAULT_SETTINGS.settingsVersion
   store.set('settings', next)
   return next

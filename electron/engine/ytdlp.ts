@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
 import { run } from './run'
 import { app } from 'electron'
+import { getSecret } from '../secrets'
 import { cpus } from 'node:os'
 import { spawn } from 'node:child_process'
 
@@ -26,7 +27,27 @@ function must(name: 'yt-dlp'): string {
 }
 
 /** Flags that apply to every yt-dlp invocation. */
-function commonArgs(settings: Settings): string[] {
+const USER_AGENTS: Record<Exclude<Settings['userAgent'], 'default'>, string> = {
+  desktop: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1',
+  android: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+}
+/** yt-dlp rejects password logins for YouTube outright ("not supported"), so the stored login never reaches it. */
+const acceptsPasswordLogin = (url: string) => !/(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)/i.test(safeHost(url))
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return ''
+  }
+}
+const SECRET_FLAGS = new Set(['--password', '--video-password'])
+/** argv for the log with secrets masked. */
+export function redactArgs(args: string[]): string {
+  return args.map((a, i) => (SECRET_FLAGS.has(args[i - 1]) ? '••••' : /\s/.test(a) ? JSON.stringify(a) : a)).join(' ')
+}
+
+function commonArgs(settings: Settings, url = ''): string[] {
   // yt-dlp encodes what it prints with the locale's preferred encoding (cp1252 on Windows) and drops
   // characters it cannot represent, so a printed path stops matching the real file. Force UTF-8 on the
   // pipe; PYTHONUTF8=1 in engineEnv() covers the Python side.
@@ -42,6 +63,12 @@ function commonArgs(settings: Settings): string[] {
   if (settings.proxyEnabled && settings.proxy.trim()) args.push('--proxy', settings.proxy.trim())
   if (settings.cookiesFromBrowser) args.push('--cookies-from-browser', settings.cookiesFromBrowser)
   if (settings.cookiesFile && fileExists(settings.cookiesFile)) args.push('--cookies', settings.cookiesFile)
+  if (settings.userAgent !== 'default') args.push('--user-agent', USER_AGENTS[settings.userAgent])
+  if (settings.loginUsername && acceptsPasswordLogin(url)) {
+    const password = getSecret('loginPassword')
+    if (password) args.push('--username', settings.loginUsername, '--password', password)
+  }
+  if (settings.videoPassword) args.push('--video-password', settings.videoPassword)
   // bgutil PO-token helper: yt-dlp loads the plugin from the zip and runs the script through the bundled Deno.
   // Skipped when the network sinkholes its endpoint (see setPotReachable), so a doomed generation never
   // adds its timeout to every fetch.
@@ -73,7 +100,7 @@ export interface FetchOptions {
 
 export async function fetchMetadata(url: string, settings: Settings, opts: FetchOptions = {}): Promise<MediaItem> {
   const bin = must('yt-dlp')
-  const args = [...commonArgs(settings), '--dump-single-json', '--flat-playlist', '--skip-download']
+  const args = [...commonArgs(settings, url), '--dump-single-json', '--flat-playlist', '--skip-download']
   // A single video inside a playlist: fetch the video, remember the playlist for the prompt.
   if (opts.noPlaylist !== false && playlistUrlFromVideoUrl(url)) args.push('--no-playlist')
   let res = await run(bin, [...args, '--', url], { timeoutMs: 180000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done
@@ -240,7 +267,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   mkdirSync(job.destination, { recursive: true })
 
   const args = [
-    ...commonArgs(settings),
+    ...commonArgs(settings, job.media.url || job.url),
     ...buildFormatArgs(format, settings),
     // --print implies --quiet, which silences the progress lines; --no-quiet restores them.
     '--no-quiet',
@@ -325,7 +352,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   const infoArgs = infoFresh ? ['--load-info-json', job.media.infoJsonPath!] : urlArgs
   args.push(...infoArgs)
 
-  job.onLog?.(`argv: ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ')}`)
+  job.onLog?.(`argv: ${redactArgs(args)}`)
   let outputPath = ''
   let alreadyExists = false
   let existingPath = ''
