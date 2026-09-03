@@ -155,6 +155,9 @@ export class TuberDb {
       .prepare('SELECT format_id AS formatId, output_path AS outputPath FROM history WHERE url_key = ? ORDER BY completed_at DESC')
       .all(urlKey) as { formatId: string; outputPath: string }[]
   }
+  replaceHistoryPath(from: string, to: string) {
+    this.db.prepare('UPDATE history SET output_path = ? WHERE output_path = ?').run(to, from)
+  }
   removeHistory(ids: string[]) {
     this.each('DELETE FROM history WHERE id = ?', ids)
   }

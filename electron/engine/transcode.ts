@@ -1,4 +1,4 @@
-import { existsSync, renameSync, rmSync } from 'node:fs'
+import { existsSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, basename } from 'node:path'
 import { run, type RunResult } from './run'
 import { resolveTool } from './paths'
@@ -165,4 +165,83 @@ export async function exportSegment(job: SegmentJob): Promise<string> {
   renameSync(tmp, out)
   job.onProgress(100)
   return out
+}
+
+export interface Mark {
+  /** seconds */
+  start: number
+  title: string
+}
+
+const safeName = (t: string) => t.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80)
+
+/** Cut `src` at the marks into numbered clips beside it ("<stem> - 01 Title.mp4"). Stream copy: instant, keyframe-aligned. */
+export async function splitByMarks(src: string, marks: Mark[], opts: TranscodeOptions): Promise<string[]> {
+  const ffmpeg = resolveTool('ffmpeg')
+  if (!ffmpeg) throw new Error('ffmpeg is not installed. Open Settings → Engine.')
+  const info = await inspect(src)
+  const total = info.duration ?? 0
+  const sorted = [...marks].filter((m) => m.start >= 0 && (!total || m.start < total)).sort((a, b) => a.start - b.start)
+  if (!sorted.length) throw new Error('No timecodes found.')
+  if (sorted[0].start > 0.5) sorted.unshift({ start: 0, title: 'Start' })
+  const ext = extname(src).replace('.', '') || 'mp4'
+  const audioOnly = !info.vcodec || /mjpeg|png/.test(info.vcodec)
+  const dir = dirname(src)
+  const stem = basename(src, extname(src))
+  const width = String(sorted.length).length
+  const outputs: string[] = []
+  for (let i = 0; i < sorted.length; i++) {
+    if (opts.signal?.aborted) throw new Error('cancelled')
+    const start = sorted[i].start
+    const end = i + 1 < sorted.length ? sorted[i + 1].start : total || undefined
+    let out = join(dir, `${stem} - ${String(i + 1).padStart(width, '0')} ${safeName(sorted[i].title) || 'Part'}.${ext}`)
+    for (let n = 2; existsSync(out); n++) out = out.replace(/(\.[^.]+)$/, ` (${n})$1`)
+    const args = ['-hide_banner', '-y', '-loglevel', 'error', '-nostats', '-ss', String(start), '-i', src]
+    if (end !== undefined) args.push('-t', String(Math.max(0.1, end - start)))
+    args.push('-map', audioOnly ? '0:a:0' : '0:v:0', ...(audioOnly ? [] : ['-map', '0:a?']), '-c', 'copy', '-map_metadata', '0', '-metadata', `title=${sorted[i].title}`, '-metadata', `track=${i + 1}/${sorted.length}`)
+    if (/^(mp4|m4a|m4v|mov)$/i.test(ext)) args.push('-movflags', '+faststart')
+    args.push(out)
+    opts.onLog?.(`split ${i + 1}/${sorted.length}: ${basename(out)}`)
+    const res = await run(ffmpeg, args, { signal: opts.signal, idleTimeoutMs: 10 * 60 * 1000 }).done
+    if (opts.signal?.aborted) throw new Error('cancelled')
+    if (res.code !== 0) throw new Error(`Split failed on part ${i + 1}: ${res.stderr.trim().split('\n').pop() ?? `exit ${res.code}`}`)
+    outputs.push(out)
+    opts.onProgress(((i + 1) / sorted.length) * 100)
+  }
+  return outputs
+}
+
+/** Write the marks into `src` as chapter metadata, in place (a remux, no re-encode). */
+export async function writeChapters(src: string, marks: Mark[], opts: TranscodeOptions): Promise<void> {
+  const ffmpeg = resolveTool('ffmpeg')
+  if (!ffmpeg) throw new Error('ffmpeg is not installed. Open Settings → Engine.')
+  const info = await inspect(src)
+  const total = info.duration ?? 0
+  const sorted = [...marks].filter((m) => m.start >= 0 && (!total || m.start < total)).sort((a, b) => a.start - b.start)
+  if (!sorted.length) throw new Error('No timecodes found.')
+  const esc = (t: string) => t.replace(/([=;#\\\n])/g, '\\$1')
+  const lines = [';FFMETADATA1']
+  for (let i = 0; i < sorted.length; i++) {
+    const end = i + 1 < sorted.length ? sorted[i + 1].start : total || sorted[i].start + 1
+    lines.push('[CHAPTER]', 'TIMEBASE=1/1000', `START=${Math.round(sorted[i].start * 1000)}`, `END=${Math.round(end * 1000)}`, `title=${esc(sorted[i].title || `Chapter ${i + 1}`)}`)
+  }
+  const meta = src + '.chapters.txt'
+  const tmp = src + '.chapters' + (extname(src) || '.mp4')
+  writeFileSync(meta, lines.join('\n') + '\n', 'utf8')
+  try {
+    const args = ['-hide_banner', '-y', '-loglevel', 'error', '-nostats', '-i', src, '-i', meta, '-map', '0', '-map_metadata', '0', '-map_chapters', '1', '-c', 'copy']
+    if (/\.(mp4|m4a|m4v|mov)$/i.test(src)) args.push('-movflags', '+faststart')
+    args.push(tmp)
+    const res = await run(ffmpeg, args, { signal: opts.signal, idleTimeoutMs: 10 * 60 * 1000 }).done
+    if (opts.signal?.aborted || res.code !== 0) {
+      rmSync(tmp, { force: true })
+      if (opts.signal?.aborted) throw new Error('cancelled')
+      throw new Error(`Writing chapters failed: ${res.stderr.trim().split('\n').pop() ?? `exit ${res.code}`}`)
+    }
+    rmSync(src, { force: true })
+    renameSync(tmp, src)
+    opts.onProgress(100)
+  } finally {
+    rmSync(meta, { force: true })
+  }
 }

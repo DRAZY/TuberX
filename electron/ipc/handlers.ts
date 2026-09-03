@@ -1,9 +1,9 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron'
 import { extractUrls } from '../../shared/urls'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { app } from 'electron'
 import type { AppInfo, LaterEntry, MainEvents, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
@@ -12,7 +12,7 @@ import { checkAllTools } from '../engine/tools'
 import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
 import { bestEncoder } from '../engine/encoders'
-import { exportSegment } from '../engine/transcode'
+import { exportSegment, splitByMarks, writeChapters } from '../engine/transcode'
 import { mediaUrl } from '../media'
 import { engineLog } from '../queue/manager'
 import { fetchMetadata } from '../engine/ytdlp'
@@ -160,6 +160,8 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
         { label: 'Open file', enabled: !!row.outputPath && row.status === 'done', click: () => void openFile(row.outputPath!) },
         { label: 'Open with…', enabled: !!row.outputPath && row.status === 'done', click: () => void openWith(row.outputPath!, win) },
         { label: 'Trim…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:trim', { rowId: row.id }) },
+        { label: 'Split by timecodes…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:split', { rowId: row.id }) },
+        { label: 'Rename…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:rename', { rowId: row.id }) },
         { label: 'Reveal in folder', enabled: !!row.outputPath, click: () => shell.showItemInFolder(row.outputPath!) },
         { label: 'Copy file path', enabled: !!row.outputPath, click: () => clipboard.writeText(row.outputPath!) },
         { label: 'Reveal file', enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },
@@ -326,6 +328,32 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     }
   })
   ipcMain.handle('trim:cancel', () => trimAbort?.abort())
+  ipcMain.handle('trim:split', async (_e, job: { src: string; marks: { start: number; title: string }[]; mode: 'clips' | 'chapters' }) => {
+    trimAbort?.abort()
+    const ac = (trimAbort = new AbortController())
+    const opts = { signal: ac.signal, onProgress: (percent: number) => send('trim:progress', { percent }), onLog: (l: string) => engineLog('split', l) }
+    try {
+      if (job.mode === 'chapters') {
+        await writeChapters(job.src, job.marks, opts)
+        return [job.src]
+      }
+      return await splitByMarks(job.src, job.marks, opts)
+    } finally {
+      if (trimAbort === ac) trimAbort = null
+    }
+  })
+  ipcMain.handle('files:rename', (_e, pairs: { rowId: string; from: string; to: string }[]) => {
+    const changed: string[] = []
+    for (const p of pairs) {
+      if (!existsSync(p.from) || p.from === p.to) continue
+      if (existsSync(p.to)) throw new Error(`${basename(p.to)} already exists`)
+      renameSync(p.from, p.to)
+      queue.setOutputPath(p.rowId, p.to)
+      db.replaceHistoryPath(p.from, p.to)
+      changed.push(p.to)
+    }
+    return changed
+  })
   ipcMain.handle('export:links', async (e, kind: 'queue' | 'later' | 'history') => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const lines =

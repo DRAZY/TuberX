@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { MediaItem, ToastKind } from '@shared/types'
 
-export type PanelName = 'none' | 'later' | 'history' | 'settings' | 'multilink' | 'playlist' | 'trim'
+export type PanelName = 'none' | 'later' | 'history' | 'settings' | 'multilink' | 'playlist' | 'trim' | 'split' | 'rename'
 
 export interface Toast {
   id: number
@@ -68,6 +68,17 @@ export const useUiStore = defineStore('ui', () => {
     trimRowId.value = rowId
     panel.value = 'trim'
   }
+  const splitRowId = ref<string | null>(null)
+  function openSplit(rowId: string): void {
+    splitRowId.value = rowId
+    panel.value = 'split'
+  }
+  /** Rows the rename dialog works on: the clicked row plus the current selection when it is part of it. */
+  const renameRowIds = ref<string[]>([])
+  function openRename(rowIds: string[]): void {
+    renameRowIds.value = rowIds
+    panel.value = 'rename'
+  }
   function closeTrim(): void {
     trimRowId.value = null
     if (panel.value === 'trim') panel.value = 'none'
@@ -105,6 +116,10 @@ export const useUiStore = defineStore('ui', () => {
     trimRowId,
     openTrim,
     closeTrim,
+    splitRowId,
+    openSplit,
+    renameRowIds,
+    openRename,
     panel,
     toasts,
     playlistPrompt,

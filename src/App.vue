@@ -9,6 +9,8 @@ import HistoryPanel from '@/components/HistoryPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import MultiLinkDialog from '@/components/MultiLinkDialog.vue'
 import TrimDialog from '@/components/TrimDialog.vue'
+import SplitDialog from '@/components/SplitDialog.vue'
+import RenameDialog from '@/components/RenameDialog.vue'
 import PlaylistPrompt from '@/components/PlaylistPrompt.vue'
 import Toasts from '@/components/Toasts.vue'
 import Icon from '@/components/Icon.vue'
@@ -196,6 +198,8 @@ onMounted(() => {
   unbinds.push(listen('ui:about', () => ui.open('settings', 'about')))
   unbinds.push(listen('ui:export', (kind) => void window.tuberx.exportLinks(kind)))
   unbinds.push(listen('ui:trim', ({ rowId }) => ui.openTrim(rowId)))
+  unbinds.push(listen('ui:split', ({ rowId }) => ui.openSplit(rowId)))
+  unbinds.push(listen('ui:rename', ({ rowId }) => ui.openRename(queue.isSelected(rowId) && queue.selected.size > 1 ? [...queue.selected] : [rowId])))
   unbinds.push(listen('power:countdown', (p) => (power.value = p.seconds > 0 ? p : null)))
   window.addEventListener('dragover', onDragOver)
   window.addEventListener('dragleave', onDragLeave)
@@ -262,6 +266,8 @@ onBeforeUnmount(() => {
 
       <MultiLinkDialog v-if="ui.panel === 'multilink'" />
       <TrimDialog v-if="ui.panel === 'trim' && ui.trimRowId" :row-id="ui.trimRowId" />
+      <SplitDialog v-if="ui.panel === 'split' && ui.splitRowId" :row-id="ui.splitRowId" />
+      <RenameDialog v-if="ui.panel === 'rename' && ui.renameRowIds.length" :row-ids="ui.renameRowIds" />
 
       <PlaylistPrompt
         v-if="ui.playlistPrompt"

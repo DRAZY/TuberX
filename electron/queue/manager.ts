@@ -158,6 +158,11 @@ export class QueueManager extends EventEmitter {
     this.emitChanged()
   }
 
+  /** A finished file was renamed outside the engine (Rename dialog). */
+  setOutputPath(id: string, outputPath: string) {
+    this.update(id, { outputPath })
+  }
+
   setFormat(id: string, formatId: string) {
     this.update(id, { formatId })
   }

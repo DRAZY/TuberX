@@ -237,6 +237,8 @@ export interface MainEvents {
   'trim:progress': { percent: number }
   /** Open the trim view for a row (from the context menu). */
   'ui:trim': { rowId: string }
+  'ui:split': { rowId: string }
+  'ui:rename': { rowId: string }
   /** A sleep or shutdown is about to happen; the renderer shows the countdown with a Cancel. `seconds` 0 = cancelled. */
   'power:countdown': { action: 'sleep' | 'shutdown'; seconds: number }
   'toast': { kind: ToastKind; message: string }
@@ -320,7 +322,13 @@ export interface TuberXApi {
   trim: {
     /** Cut a segment into a new file beside the source; resolves to its path. */
     export(job: { src: string; start: number; end: number; kind: 'mp4' | 'm4a' | 'm4r'; precise: boolean }): Promise<string>
+    /** Split at the marks into numbered clips beside the source (resolves to their paths), or write the marks into the file as chapters. */
+    split(job: { src: string; marks: { start: number; title: string }[]; mode: 'clips' | 'chapters' }): Promise<string[]>
     cancel(): Promise<void>
+  }
+  files: {
+    /** Rename finished files; each entry moves `from` to `to` (same folder). Rows and history follow. Resolves to the paths that changed. */
+    rename(pairs: { rowId: string; from: string; to: string }[]): Promise<string[]>
   }
   shell: {
     reveal(path: string): Promise<void>

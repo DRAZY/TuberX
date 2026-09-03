@@ -52,8 +52,12 @@ const api: TuberXApi = {
   media: {
     url: (path) => invoke('media:url', path),
   },
+  files: {
+    rename: (pairs) => invoke('files:rename', pairs),
+  },
   trim: {
     export: (job) => invoke('trim:export', job),
+    split: (job) => invoke('trim:split', job),
     cancel: () => invoke('trim:cancel'),
   },
   shell: {
