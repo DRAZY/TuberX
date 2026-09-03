@@ -184,6 +184,7 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('contextmenu', onContextMenu)
   unbinds.push(listen('ui:selectAll', () => queue.selectAll()))
+  unbinds.push(listen('ui:about', () => ui.open('settings', 'about')))
   window.addEventListener('dragover', onDragOver)
   window.addEventListener('dragleave', onDragLeave)
   window.addEventListener('drop', onDrop)

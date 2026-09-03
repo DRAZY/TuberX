@@ -142,8 +142,8 @@ export interface DownloadJob {
   destination: string
   settings: Settings
   signal?: AbortSignal
-  /** Explicit re-download: replace an existing output instead of treating it as already done. */
-  force?: boolean
+  /** Replace the file at the target name. Only the queue grants this, and only when it has established that this very format produced that file. */
+  overwrite?: boolean
   /** Keep-both mode: add the quality to the file name so the earlier download survives. */
   nameTag?: string
   onProgress: (p: DownloadProgress) => void
@@ -215,10 +215,10 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     '--embed-chapters',
     '--no-playlist',
   ]
-  // yt-dlp treats an existing *file name* as "already downloaded" regardless of format, so a
-  // re-download at another quality would silently keep the old file. Force it when the user asked.
-  if (settings.skipIfExists && !job.force) args.push('--no-overwrites')
-  else args.push('--force-overwrites')
+  // yt-dlp decides "already downloaded" by file name alone. The default keeps an existing video file
+  // (the queue then retries with a quality tag); overwriting is granted only for a refresh of a file
+  // this same format produced. Related files (thumbnail, subtitles) may always be rewritten.
+  args.push(job.overwrite ? '--force-overwrites' : '--no-force-overwrites')
 
   // Tags + artwork on everything that can carry them
   if (format.kind !== 'video-only' && format.kind !== 'wav') args.push('--embed-thumbnail') // WAV cannot carry cover art
@@ -274,6 +274,11 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   job.onLog?.(`argv: ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ')}`)
   let outputPath = ''
   let alreadyExists = false
+  let existingPath = ''
+  // yt-dlp keeps an existing file but still runs its post-processors over it. When this job may not
+  // overwrite, the process is stopped the moment it reports the file, so the user's file is not touched.
+  const inner = new AbortController()
+  job.signal?.addEventListener('abort', () => inner.abort(), { once: true })
   let moveBlocked = false
   // aria2c announces itself with its own status lines ("[#a1b2c3 12MiB/245MiB CN:16 DL:8.7MiB]");
   // the native downloader never prints those. Surfaced so the UI can prove which path ran.
@@ -300,7 +305,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     return { ...p, percent: Math.round(pct * 10) / 10, downloadedBytes: done, totalBytes: known || undefined, part: { index: parts.length, count: Math.max(expectedParts, parts.length) } }
   }
   const { done } = run(bin, args, {
-    signal: job.signal,
+    signal: inner.signal,
     pathPrepend: toolDirs(),
     env: engineEnv(),
     // No output for 10 minutes means ffmpeg or aria2c is wedged (antivirus / OneDrive locks are the usual
@@ -313,7 +318,12 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
         outputPath = final
         return
       }
-      if (/has already been downloaded/.test(line)) alreadyExists = true
+      const ex = line.match(/^\[download\] (.+?) has already been downloaded/)
+      if (ex) {
+        alreadyExists = true
+        existingPath = ex[1]
+        if (!job.overwrite) inner.abort()
+      }
       // "[info] id: Downloading 1 format(s): 298+140" — a merged selection counts as one format but
       // arrives as one file per "+"-joined id, so count the ids, not the number yt-dlp prints.
       const fm = line.match(/Downloading \d+ format\(s\): (\S+)/)
@@ -336,6 +346,10 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   })
   let res = await done
   if (job.signal?.aborted) throw new Error('cancelled')
+  if (alreadyExists && !job.overwrite) {
+    job.onLog?.(`kept existing file untouched: ${existingPath}`)
+    return { outputPath: existingPath, skipped: true }
+  }
   if (res.code !== 0 && infoFresh && !res.stalled && /403|expired|Requested format is not available|HTTP Error 4/i.test(res.stderr)) {
     // Saved URLs went stale: extract again once, the slow-but-sure way.
     job.onLog?.('saved info JSON rejected by the server; refetching')

@@ -216,21 +216,25 @@ export class QueueManager extends EventEmitter {
   }
 
   /**
-   * Name for a re-download ("Download again"). The rule: a file the user already has is never replaced
-   * by a different format. Downloading the same format again refreshes that one file in place. A new
-   * video quality on a row that already has a video file on disk is saved with the quality in its name
-   * (keep-both, the default) or overwrites it (replace). Audio formats never collide: their extensions differ.
-   * Files from older versions, before the per-row ledger existed, are found through history and the row's
-   * last output, so an upgraded install keeps its files too.
+   * How a download is named and whether it may replace anything. The rule: a file the user already has
+   * is never replaced by a different format. Overwriting is granted only for "Download again" of a
+   * format that provably produced the file at that name; everything else lands beside what exists.
+   * A new video quality on a row with a video file on disk gets the quality in its name (keep-both,
+   * the default) or overwrites on Download again (replace). Audio formats never collide with video:
+   * their extensions differ, and an existing file with the same audio extension is that same format.
+   * Files from older versions, before the per-row ledger existed, are found through history and the
+   * row's last output. When nothing is on record and a same-named video file still turns up, yt-dlp
+   * leaves it alone and runDownload retries with the quality tag.
    */
-  private redoNameTag(row: QueueRow, format: FormatOption, variants: Record<string, string>, collides: boolean, settings: Settings): string | undefined {
-    if (format.id in variants) return variants[format.id] || undefined
-    if (!collides || settings.onConflict !== 'keep-both') return undefined
+  private namePlan(row: QueueRow, format: FormatOption, variants: Record<string, string>, collides: boolean, force: boolean, settings: Settings): NamePlan {
+    if (format.id in variants) return { nameTag: variants[format.id] || undefined, overwrite: force } // its own file: refresh on Download again
+    if (!collides) return { overwrite: force }
+    if (settings.onConflict !== 'keep-both') return { overwrite: force }
     const onDisk = this.existingVideoFiles(row)
     const own = onDisk.find((f) => f.formatId === format.id)
-    if (own) return recognizedTag(own.path) // this format made that file: refresh it under its existing name
-    if (onDisk.length || Object.keys(variants).some(isVideoFormatId)) return qualityTag(format)
-    return undefined
+    if (own) return { nameTag: recognizedTag(own.path), overwrite: force }
+    if (onDisk.length || Object.keys(variants).some(isVideoFormatId)) return { nameTag: qualityTag(format), overwrite: false }
+    return { overwrite: false }
   }
 
   /** Video files this link has produced that are still on disk, with the format that made each when known. */
@@ -242,6 +246,16 @@ export class QueueManager extends EventEmitter {
     }
     for (const h of this.db.historyFor(urlKey(row.url))) consider(h.outputPath, h.formatId)
     consider(row.outputPath) // the row's format may have been changed since, so its maker is unknown
+    // Nothing on record (history cleared, files from another machine): a video file in the destination
+    // whose name is this title, with or without a quality tag, still counts. A look-alike only costs a tag.
+    const dest = row.destination || this.getSettings().destination
+    const want = looseName(row.media?.title ?? '')
+    if (want) {
+      for (const f of safeReaddir(dest)) {
+        const stem = basename(f, extname(f)).replace(/ \[[^\]]+\]$/, '')
+        if (looseName(stem) === want) consider(join(dest, f))
+      }
+    }
     return out
   }
 
@@ -254,7 +268,7 @@ export class QueueManager extends EventEmitter {
     const force = this.redo.delete(row.id)
     const variants = { ...(row.downloadedVariants ?? {}) }
     const collides = format.kind === 'video' || format.kind === 'video-only'
-    const nameTag = force ? this.redoNameTag(row, format, variants, collides, settings) : undefined
+    let plan = this.namePlan(row, format, variants, collides, force, settings)
     if (settings.skipIfExists && !force && this.db.historyHas(urlKey(row.url))) {
       this.update(row.id, { status: 'skipped', error: undefined })
       return this.pump()
@@ -266,17 +280,17 @@ export class QueueManager extends EventEmitter {
     // A resumed row keeps its bar where it paused until the engine reports fresh numbers.
     const seed = row.progress?.stage === 'download' && row.progress.percent > 0 ? { ...row.progress, speed: undefined, eta: undefined } : { stage: 'download' as const, percent: 0 }
     this.update(row.id, { status: 'downloading', progress: seed })
-    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} nameTag=${nameTag ?? '-'} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
+    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} nameTag=${plan.nameTag ?? '-'} overwrite=${plan.overwrite} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
     try {
-      const result = await download({
+      const run = (p: NamePlan) => download({
         url: row.url,
         media,
         format,
         destination: row.destination || settings.destination,
         settings,
         signal: ac.signal,
-        force,
-        nameTag,
+        overwrite: p.overwrite,
+        nameTag: p.nameTag,
         onLog: (line) => engineLog(row.id, line),
         onProgress: (p) => {
           const r = this.rows.find((x) => x.id === row.id)
@@ -291,12 +305,19 @@ export class QueueManager extends EventEmitter {
           this.emit('progress', row.id, p)
         },
       })
+      let result = await run(plan)
+      if (result.skipped && collides && !plan.overwrite && !plan.nameTag && settings.onConflict === 'keep-both') {
+        // A same-named video file exists that nothing on record produced. It stays; this quality goes beside it.
+        plan = { nameTag: qualityTag(format), overwrite: false }
+        engineLog(row.id, `--- retry nameTag=${plan.nameTag}: kept existing ${result.outputPath || 'same-named file'}`)
+        result = await run(plan)
+      }
       if (result.skipped) {
         this.update(row.id, { status: 'skipped', outputPath: result.outputPath || undefined, progress: undefined })
       } else {
         // the plain name now holds this format; any other format that used the plain name was overwritten
-        if (!nameTag) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && (collides === (id.startsWith('v')))) delete variants[id]
-        variants[format.id] = nameTag ?? ''
+        if (!plan.nameTag) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && (collides === (id.startsWith('v')))) delete variants[id]
+        variants[format.id] = plan.nameTag ?? ''
         this.update(row.id, { status: 'done', outputPath: result.outputPath, progress: undefined, downloadedVariants: variants })
         this.db.addHistory(
           {
@@ -378,6 +399,16 @@ export function qualityTag(format: FormatOption): string {
   }
 }
 
+type NamePlan = { nameTag?: string; overwrite: boolean }
+/** Letters and digits only, lower-cased: equal for a title and the file name yt-dlp sanitised from it. */
+const looseName = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '').slice(0, 80)
+const safeReaddir = (dir: string): string[] => {
+  try {
+    return readdirSync(dir)
+  } catch {
+    return []
+  }
+}
 const isVideoFormatId = (id: string) => id.startsWith('v')
 const isVideoFile = (path: string) => /^\.(mp4|mkv|webm|mov|m4v|avi|flv|ts|3gp)$/i.test(extname(path))
 /** The quality suffix a keep-both download gave a file, if its name carries one. */

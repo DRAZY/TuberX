@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { guard } from '@/lib/ipc'
-import { onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import type { Settings } from '@shared/types'
 import Icon from '@/components/Icon.vue'
 import IconButton from '@/components/IconButton.vue'
@@ -13,6 +13,25 @@ import { useUiStore } from '@/stores/ui'
 
 const store = useSettingsStore()
 const ui = useUiStore()
+
+const body = ref<HTMLElement | null>(null)
+/** Opened from "About TuberX": scroll the About section into view once the panel has rendered. */
+async function scrollToAnchor(): Promise<void> {
+  const to = ui.anchor
+  if (!to) return
+  ui.anchor = null
+  await nextTick()
+  body.value?.querySelector(`#${to}`)?.scrollIntoView({ block: 'start' })
+}
+onMounted(() => {
+  void store.loadAppInfo()
+  void scrollToAnchor()
+})
+watch(() => ui.anchor, () => void scrollToAnchor())
+
+function openLink(url: string): void {
+  void guard(() => window.tuberx.shell.openExternal(url))
+}
 
 const MP3_BITRATES: Settings['mp3Bitrate'][] = [128, 192, 256, 320]
 const CONCURRENCY: Settings['concurrentDownloads'][] = [1, 2, 3, 4, 5, 6, 8]
@@ -76,7 +95,7 @@ function commitProxy(): void {
       <IconButton icon="close" label="Close" @click="ui.close()" />
     </header>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+    <div ref="body" class="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
       <!-- Destination -->
       <section class="border-b border-tx-border py-4">
         <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Destination</h3>
@@ -390,6 +409,37 @@ function commitProxy(): void {
           hint="Sites change constantly; this is what keeps downloads working."
           @update:model-value="set('autoUpdateEngine', $event)"
         />
+      </section>
+
+      <!-- About -->
+      <section id="about" class="border-t border-tx-border py-4">
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">About</h3>
+        <div class="flex items-start gap-3">
+          <img src="/icon.png" alt="" class="h-10 w-10 shrink-0 rounded-lg" />
+          <div class="min-w-0">
+            <div class="flex items-baseline gap-2">
+              <span class="text-[14px] font-semibold text-tx-text">TuberX</span>
+              <span class="font-mono text-[11px] text-tx-muted">{{ store.appInfo ? `v${store.appInfo.version}` : '…' }}</span>
+            </div>
+            <p class="mt-1 text-[11px] leading-snug text-tx-muted">
+              Paste a link, get the media. A standalone video and audio downloader for Windows and Apple-silicon Macs:
+              one row per link, a quality you can see and choose, and finished MP4, MP3, M4A or WAV files with tags,
+              chapters, cover art and subtitles already in place. Powered by yt-dlp, ffmpeg and aria2c, which update themselves.
+            </p>
+            <p v-if="store.appInfo" class="mt-1 font-mono text-[10px] text-tx-muted">
+              {{ store.appInfo.platform }} {{ store.appInfo.arch }} · Electron {{ store.appInfo.electron }} · Chromium {{ store.appInfo.chrome.split('.')[0] }}
+            </p>
+          </div>
+        </div>
+        <div v-if="store.appInfo" class="mt-3 flex flex-wrap gap-2">
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.homepage)">Project page</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.releases)">Releases</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.issues)">Report a problem</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.licenses)">Third-party licenses</button>
+        </div>
+        <p class="mt-3 text-[10px] leading-snug text-tx-muted">
+          Updates arrive automatically from GitHub Releases. MIT licensed. © 2026 Andre Hall.
+        </p>
       </section>
     </div>
     <footer class="flex shrink-0 items-center justify-between border-t border-tx-border px-4 py-2 text-[10px] text-tx-muted">

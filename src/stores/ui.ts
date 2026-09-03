@@ -26,8 +26,12 @@ export const useUiStore = defineStore('ui', () => {
   let nextToastId = 1
   const timers = new Map<number, ReturnType<typeof setTimeout>>()
 
-  function open(name: PanelName): void {
+  /** Where the opened panel should scroll to, consumed once by the panel (the About link uses it). */
+  const anchor = ref<string | null>(null)
+
+  function open(name: PanelName, to?: string): void {
     panel.value = name
+    anchor.value = to ?? null
   }
 
   function toggle(name: PanelName): void {
@@ -86,6 +90,7 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   return {
+    anchor,
     panel,
     toasts,
     playlistPrompt,

@@ -212,7 +212,22 @@ export interface MainEvents {
   'engine:updated': { from?: string; to: string }
   'url:incoming': { url: string; later: boolean }
   'ui:selectAll': null
+  'ui:about': null
   'toast': { kind: ToastKind; message: string }
+}
+
+/** What the About section shows: the build the user is running and where it comes from. */
+export interface AppInfo {
+  name: string
+  version: string
+  platform: string
+  arch: string
+  electron: string
+  chrome: string
+  homepage: string
+  releases: string
+  issues: string
+  licenses: string
 }
 
 /** The bridge the preload exposes as window.tuberx. */
@@ -256,6 +271,9 @@ export interface TuberXApi {
   tools: {
     status(): Promise<ToolStatus[]>
     updateEngine(): Promise<{ updated: boolean; version: string }>
+  }
+  app: {
+    info(): Promise<AppInfo>
   }
   shell: {
     reveal(path: string): Promise<void>

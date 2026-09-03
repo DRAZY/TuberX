@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
-import type { LaterEntry, MainEvents, Settings } from '../../shared/types'
+import type { AppInfo, LaterEntry, MainEvents, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
 import type { TuberDb } from '../db/database'
 import { checkAllTools } from '../engine/tools'
@@ -119,9 +119,25 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
       { label: 'Paste link and download', enabled: hasLink, click: () => void pasteClipboard(true) },
       { type: 'separator' },
       { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => e.sender.send('ui:selectAll', null) },
+      { type: 'separator' },
+      { label: 'About TuberX', click: () => e.sender.send('ui:about', null) },
     )
     Menu.buildFromTemplate(items).popup({ window: win })
   })
+
+  // ---- about ----
+  ipcMain.handle('app:info', (): AppInfo => ({
+    name: app.getName(),
+    version: app.getVersion(),
+    platform: process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : process.platform,
+    arch: process.arch,
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    homepage: 'https://github.com/DRAZY/TuberX',
+    releases: 'https://github.com/DRAZY/TuberX/releases',
+    issues: 'https://github.com/DRAZY/TuberX/issues',
+    licenses: 'https://github.com/DRAZY/TuberX/blob/main/THIRD_PARTY_LICENSES.md',
+  }))
 
   // ---- later ----
   ipcMain.handle('later:list', () => db.listLater())

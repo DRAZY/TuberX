@@ -17,7 +17,7 @@ function parseVersion(name: Exclude<ToolName, 'pot-helper'>, out: string): strin
     case 'yt-dlp':
       return first.trim() || undefined
     case 'ffmpeg':
-      return first.match(/version\s+(\S+)/)?.[1]
+      return first.match(/version\s+(\S+)/)?.[1]?.replace(/-https?:.*$/, '') // builder URL suffix is noise
     case 'aria2c':
       return first.match(/version\s+(\S+)/)?.[1]
     case 'deno':

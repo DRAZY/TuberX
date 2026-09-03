@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { DEFAULT_SETTINGS, type Settings, type ToolStatus } from '@shared/types'
+import { DEFAULT_SETTINGS, type AppInfo, type Settings, type ToolStatus } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
 import { useUiStore } from '@/stores/ui'
 
@@ -8,6 +8,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const ui = useUiStore()
   const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
   const tools = ref<ToolStatus[]>([])
+  const appInfo = ref<AppInfo | null>(null)
   const loaded = ref(false)
   const engineUpdating = ref(false)
   const engineResult = ref('')
@@ -68,7 +69,15 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  async function loadAppInfo(): Promise<void> {
+    if (appInfo.value) return
+    const info = await guard(() => window.tuberx.app.info())
+    if (info) appInfo.value = info
+  }
+
   return {
+    appInfo,
+    loadAppInfo,
     settings,
     tools,
     loaded,

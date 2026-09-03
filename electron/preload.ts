@@ -39,6 +39,9 @@ const api: TuberXApi = {
     status: () => invoke('tools:status'),
     updateEngine: () => invoke('tools:updateEngine'),
   },
+  app: {
+    info: () => invoke('app:info'),
+  },
   shell: {
     reveal: (path) => invoke('shell:reveal', path),
     openExternal: (url) => invoke('shell:openExternal', url),

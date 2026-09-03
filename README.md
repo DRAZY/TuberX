@@ -43,6 +43,17 @@ TuberX opens as a compact applet (600×680) centred on your main display, painte
 
 The Settings, Later and History drawers close when you click outside them, press Escape, or add a link, and Settings has a Done button; changes apply the moment you make them.
 
+## Re-downloading and existing files
+
+TuberX never replaces a file you already have with a different format. The rules, in order:
+
+1. **A different quality or format of a link you already downloaded** lands beside the existing file with the quality in its name: `Title.mp4` stays, `Title [1080p].mp4` is added. This applies whether you use Download again on the row, or paste the link again after removing the row.
+2. **The same format again** (Download again on a row without changing the dropdown) refreshes that one file in place. It only does so when the file is on record as produced by that same format.
+3. **Audio formats never collide with video.** MP3, M4A and WAV have their own extensions, so they always sit beside the video.
+4. **Nothing on record** (history cleared, files copied from another machine): a video file in the destination with this title still counts as existing, and the new quality gets the tag. If yt-dlp still meets an existing file, TuberX stops it before anything is touched and retries with the tag.
+
+Settings → Downloads → "Re-downloading in a different format" switches rule 1 to *Replace the existing file* if you prefer one file per link.
+
 ## Troubleshooting
 
 **"Sign in to confirm you're not a bot" from YouTube.** Almost always an IPv6 connection; TuberX connects over IPv4 by default, which resolves it. If it persists, the bundled PO-token helper handles most remaining cases without a login (it needs `jnn-pa.googleapis.com` reachable; some DNS filters block that host, and TuberX tells you if yours does). As a last resort, Settings › Network can use your browser's cookies (Firefox works best on Windows) or an imported cookies.txt.
