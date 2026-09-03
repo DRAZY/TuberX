@@ -9,6 +9,7 @@ import Spinner from '@/components/Spinner.vue'
 import FormatSelect from '@/components/FormatSelect.vue'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
+import { useSettingsStore } from '@/stores/settings'
 
 const props = defineProps<{ row: QueueRow }>()
 
@@ -19,6 +20,7 @@ const thumbBroken = ref(false)
 
 const media = computed(() => props.row.media)
 const selected = computed(() => queue.isSelected(props.row.id))
+const settingsStore = useSettingsStore()
 const status = computed(() => props.row.status)
 
 const formats = computed(() => media.value?.formats ?? [])
@@ -225,6 +227,8 @@ function openPlaylist(): void {
           :formats="formats"
           :model-value="effectiveFormatId"
           :disabled="formatLocked"
+          :duration="media?.duration"
+          :mp3-bitrate="settingsStore.settings.mp3Bitrate"
           @focus="reconcileFormat"
           @update:model-value="queue.setFormat(row.id, $event)"
         />

@@ -3,7 +3,7 @@
  * The renderer never sees yt-dlp or ffmpeg directly; it only sees these types.
  */
 
-export type OutputKind = 'video' | 'video-only' | 'mp3' | 'm4a' | 'wav' | 'm4r'
+export type OutputKind = 'video' | 'video-only' | 'mp3' | 'm4a' | 'wav' | 'm4r' | 'subs'
 
 export interface FormatOption {
   /** Stable id used to select this option, e.g. "v:1080", "a:mp3" */

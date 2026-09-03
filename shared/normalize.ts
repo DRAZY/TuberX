@@ -68,19 +68,25 @@ export function snapHeight(h: number): number {
   return best
 }
 
-export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo: boolean): FormatOption[] {
+export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo: boolean, hasSubs = false): FormatOption[] {
   const out: FormatOption[] = []
+  // Best audio-only stream: its size is added to every video rung that ships without audio, so the
+  // picker's estimate is the finished file, not the video track alone.
+  const audioOnly = (formats ?? []).filter((f) => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
+  const audioSize = audioOnly.reduce((m, f) => Math.max(m, f.filesize ?? f.filesize_approx ?? 0), 0) || undefined
   const byHeight = new Map<number, { fps: number; size?: number }>()
   for (const f of formats ?? []) {
     if (!f.height || !f.vcodec || f.vcodec === 'none') continue
-    if (f.protocol && /m3u8|dash/.test(f.protocol) && f.filesize === undefined && f.filesize_approx === undefined) {
-      // still counts for resolution discovery
-    }
     const h = snapHeight(f.height)
     const prev = byHeight.get(h)
     const fps = f.fps ?? 30
-    const size = f.filesize ?? f.filesize_approx
-    if (!prev || fps > prev.fps) byHeight.set(h, { fps, size })
+    const own = f.filesize ?? f.filesize_approx
+    const muxed = !!f.acodec && f.acodec !== 'none'
+    const size = own !== undefined ? own + (muxed ? 0 : audioSize ?? 0) : undefined
+    // Highest frame rate wins the rung; among equals, the variant that reports a size (HLS/DASH
+    // manifests list the same rung without one).
+    if (!prev || fps > prev.fps + 0.5) byHeight.set(h, { fps, size })
+    else if (Math.abs(fps - prev.fps) <= 0.5 && prev.size === undefined && size !== undefined) byHeight.set(h, { fps: prev.fps, size })
   }
 
   if (hasVideo) {
@@ -115,8 +121,10 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
   const audioFormats = (formats ?? []).filter((f) => f.acodec && f.acodec !== 'none')
   const bestAbr = audioFormats.reduce((m, f) => Math.max(m, f.abr ?? f.tbr ?? 0), 0)
   out.push({ id: 'a:mp3', kind: 'mp3', label: 'MP3 audio', abr: bestAbr || undefined, selector: 'ba/b' })
-  out.push({ id: 'a:m4a', kind: 'm4a', label: 'M4A audio (original)', abr: bestAbr || undefined, selector: 'ba[ext=m4a]/ba/b' })
+  out.push({ id: 'a:m4a', kind: 'm4a', label: 'M4A audio (original)', abr: bestAbr || undefined, filesize: audioSize, selector: 'ba[ext=m4a]/ba/b' })
   out.push({ id: 'a:wav', kind: 'wav', label: 'WAV audio (lossless PCM)', abr: bestAbr || undefined, selector: 'ba/b' })
+  out.push({ id: 'a:m4r', kind: 'm4r', label: 'M4R ringtone (first 40 s)', selector: 'ba/b' })
+  if (hasSubs) out.push({ id: 's:srt', kind: 'subs', label: 'Subtitles only (.srt)', selector: 'b' })
   return out
 }
 
@@ -161,7 +169,8 @@ export function normalizeMedia(json: YtDlpJson, requestedUrl: string): MediaItem
   const isPlaylist = json._type === 'playlist' || (Array.isArray(json.entries) && json.entries.length > 0)
   const formats = isPlaylist ? [] : json.formats ?? []
   const hasVideo = formats.some((f) => f.vcodec && f.vcodec !== 'none' && f.height)
-  const options = isPlaylist ? [] : buildFormatOptions(formats, hasVideo)
+  const subs = isPlaylist ? [] : subtitleTracks(json)
+  const options = isPlaylist ? [] : buildFormatOptions(formats, hasVideo, subs.length > 0)
   const entries: PlaylistEntry[] | undefined = isPlaylist
     ? (json.entries ?? [])
         .filter((e): e is YtDlpJson => !!e)
@@ -191,7 +200,7 @@ export function normalizeMedia(json: YtDlpJson, requestedUrl: string): MediaItem
     playlistTitle: json.playlist_title ?? json.playlist,
     entries,
     formats: options,
-    subtitles: isPlaylist ? [] : subtitleTracks(json),
+    subtitles: subs,
     chapters: isPlaylist ? [] : chapters(json),
     defaultFormatId,
     requiresLogin: json.availability === 'needs_auth' || json.availability === 'subscriber_only',

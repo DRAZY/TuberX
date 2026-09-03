@@ -9,7 +9,7 @@ import { heightLabel } from '@shared/normalize'
 export interface PresetFormat {
   id: string
   label: string
-  group: 'Video' | 'Audio'
+  group: 'Video' | 'Audio' | 'Other'
 }
 
 export const PRESET_FORMATS: PresetFormat[] = [
@@ -23,6 +23,8 @@ export const PRESET_FORMATS: PresetFormat[] = [
   { id: 'a:mp3', label: 'MP3', group: 'Audio' },
   { id: 'a:m4a', label: 'M4A', group: 'Audio' },
   { id: 'a:wav', label: 'WAV (lossless)', group: 'Audio' },
+  { id: 'a:m4r', label: 'M4R ringtone', group: 'Audio' },
+  { id: 's:srt', label: 'Subtitles only', group: 'Other' },
 ]
 
 export function presetLabel(id: string): string {
@@ -71,6 +73,8 @@ export function qualityBadge(option: FormatOption | undefined, bestHeight?: numb
       return 'WAV'
     case 'm4r':
       return 'M4R'
+    case 'subs':
+      return 'SRT'
     case 'video-only':
       return 'Video'
     case 'video': {

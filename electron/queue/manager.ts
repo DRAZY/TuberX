@@ -400,6 +400,8 @@ export function qualityTag(format: FormatOption): string {
       return format.height ? (format.height >= 2160 ? '4K' : `${format.height}p`) : 'best'
     case 'video-only':
       return format.height ? `${format.height}p video only` : 'video only'
+    case 'subs':
+      return 'SRT'
     default:
       return format.kind.toUpperCase()
   }

@@ -5,7 +5,7 @@ import { normalizeMedia, type YtDlpJson } from '../../shared/normalize'
 import { FINAL_PATH_PREFIX, PROGRESS_TEMPLATE, parseFinalPath, parseProgressLine } from '../../shared/progress'
 import { playlistUrlFromVideoUrl, vimeoPlayerUrl } from '../../shared/urls'
 import { ffmpegLocation, potDir, resolveTool, toolDirs, userBinDir } from './paths'
-import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, rmdirSync, statSync, writeFileSync as writeFile } from 'node:fs'
+import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, renameSync, rmdirSync, statSync, writeFileSync as writeFile } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
 import { run } from './run'
@@ -181,7 +181,13 @@ function buildFormatArgs(format: FormatOption, settings: Settings): string[] {
       args.push('-x', '--audio-format', 'wav')
       break
     case 'm4r':
-      args.push('-x', '--audio-format', 'm4a')
+      // iPhone ringtone: AAC in an M4A container, first 40 s, renamed to .m4r once written.
+      args.push('-x', '--audio-format', 'm4a', '--audio-quality', '128K', '--postprocessor-args', 'ExtractAudio:-t 40')
+      break
+    case 'subs':
+      // Only the subtitle files; the media is never fetched.
+      args.length = 0
+      args.push('--skip-download')
       break
   }
   return args
@@ -262,25 +268,31 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   // this same format produced. Related files (thumbnail, subtitles) may always be rewritten.
   args.push(job.overwrite ? '--force-overwrites' : '--no-force-overwrites')
 
+  const subsOnly = format.kind === 'subs'
+  if (subsOnly) {
+    // No media, so nothing to tag or embed; a "[ringtone]"-style suffix is not needed either.
+    for (const flag of ['--embed-metadata', '--embed-chapters']) args.splice(args.indexOf(flag), 1)
+  }
+  if (format.kind === 'm4r') args[args.indexOf('-o') + 1] = args[args.indexOf('-o') + 1].replace(/\.%\(ext\)s$/, ' [ringtone].%(ext)s')
   // Tags + artwork on everything that can carry them
-  if (format.kind !== 'video-only' && format.kind !== 'wav') args.push('--embed-thumbnail') // WAV cannot carry cover art
-  if (settings.saveThumbnail) {
+  if (format.kind !== 'video-only' && format.kind !== 'wav' && !subsOnly) args.push('--embed-thumbnail') // WAV cannot carry cover art
+  if (settings.saveThumbnail && !subsOnly) {
     args.push('--write-thumbnail', '--convert-thumbnails', settings.thumbnailFormat)
     if (format.kind === 'video-only') args.push('--no-embed-thumbnail')
   }
 
   // Subtitles (video outputs only): user subs first, auto captions as fallback.
   // --embed-subs removes the side files after embedding unless we also asked to keep them.
-  if (format.kind === 'video' && (settings.embedSubtitles || settings.writeSubtitleFiles) && job.media.subtitles.length) {
+  if ((subsOnly || (format.kind === 'video' && (settings.embedSubtitles || settings.writeSubtitleFiles))) && job.media.subtitles.length) {
     const langs = settings.subtitleLangs.length ? settings.subtitleLangs : ['en']
     const wanted = langs.flatMap((l) => [l, `${l}-*`])
     const hasUserSub = job.media.subtitles.some((s) => !s.auto && langs.some((l) => s.lang === l || s.lang.startsWith(l + '-')))
     // yt-dlp keeps the sidecar file only when --write-subs is given explicitly;
     // --embed-subs (and --write-auto-subs) alone fetch, embed and clean up.
     args.push('--sub-langs', wanted.join(','))
-    if (settings.writeSubtitleFiles) args.push('--write-subs', '--convert-subs', 'srt')
+    if (settings.writeSubtitleFiles || subsOnly) args.push('--write-subs', '--convert-subs', 'srt')
     if (!hasUserSub) args.push('--write-auto-subs')
-    if (settings.embedSubtitles) args.push('--embed-subs')
+    if (settings.embedSubtitles && !subsOnly) args.push('--embed-subs')
   }
 
   // Fragmented streams (HLS/DASH on Vimeo, Dailymotion, Twitter …) download fragments in parallel;
@@ -361,6 +373,15 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
         outputPath = final
         return
       }
+      // Subtitles-only jobs never move a media file; the subtitle writer's own line names the output.
+      // Subtitles-only jobs never move a media file; the subtitle lands through MoveFiles (or is
+      // written in place). The last subtitle path reported wins.
+      if (format.kind === 'subs') {
+        const moved = line.match(/^\[MoveFiles\] Moving file "(.+?)" to "(.+?)"$/)
+        const written = line.match(/^\[info\] Writing video subtitles to: (.+)$/) ?? line.match(/^\[info\] Video subtitle (.+?) is already present$/)
+        const p = moved?.[2] ?? written?.[1]
+        if (p && /\.(srt|vtt|ass|lrc)$/i.test(p)) outputPath = p
+      }
       const ex = line.match(/^\[download\] (.+?) has already been downloaded/)
       if (ex) {
         alreadyExists = true
@@ -421,6 +442,13 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
       return { outputPath: m?.[1] ?? '', skipped: true }
     }
     throw new Error('download finished but no output file was reported')
+  }
+  if (format.kind === 'm4r' && /\.m4a$/i.test(outputPath) && existsSync(outputPath)) {
+    // yt-dlp only writes .m4a; the ringtone is the same container under the extension iOS expects.
+    const plain = outputPath.replace(/ \[ringtone\]\.m4a$/i, '.m4r')
+    const target = existsSync(plain) ? outputPath.replace(/\.m4a$/i, '.m4r') : plain
+    renameSync(outputPath, target)
+    outputPath = target
   }
   if (!existsSync(outputPath)) {
     // yt-dlp printed a path we cannot see. Recover from the destination folder before failing.

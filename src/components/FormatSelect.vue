@@ -9,18 +9,31 @@ const props = withDefaults(
     formats: FormatOption[]
     modelValue?: string
     disabled?: boolean
+    /** Media length in seconds: lets the picker estimate MP3 and WAV sizes yt-dlp cannot know. */
+    duration?: number
+    mp3Bitrate?: number
   }>(),
-  { modelValue: '', disabled: false },
+  { modelValue: '', disabled: false, duration: 0, mp3Bitrate: 320 },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [string] }>()
 
-const video = computed(() => props.formats.filter((f) => !isAudio(f.kind)))
+const video = computed(() => props.formats.filter((f) => !isAudio(f.kind) && f.kind !== 'subs'))
 const audio = computed(() => props.formats.filter((f) => isAudio(f.kind)))
+const other = computed(() => props.formats.filter((f) => f.kind === 'subs'))
 
+/** Sizes are estimates: stream sizes from the site for video and M4A, arithmetic for the converted kinds. */
+function estimate(f: FormatOption): number | undefined {
+  if (f.filesize) return f.filesize
+  if (!props.duration) return undefined
+  if (f.kind === 'mp3') return (props.duration * props.mp3Bitrate * 1000) / 8
+  if (f.kind === 'wav') return props.duration * 44100 * 2 * 2
+  if (f.kind === 'm4r') return (Math.min(40, props.duration) * 128000) / 8
+  return undefined
+}
 function optionLabel(f: FormatOption): string {
-  const size = formatBytes(f.filesize)
-  return size ? `${f.label} · ${size}` : f.label
+  const size = formatBytes(estimate(f))
+  return size ? `${f.label} · ≈${size}` : f.label
 }
 
 function onChange(e: Event): void {
@@ -42,6 +55,9 @@ function onChange(e: Event): void {
     </optgroup>
     <optgroup v-if="audio.length" label="Audio">
       <option v-for="f in audio" :key="f.id" :value="f.id">{{ optionLabel(f) }}</option>
+    </optgroup>
+    <optgroup v-if="other.length" label="Other">
+      <option v-for="f in other" :key="f.id" :value="f.id">{{ f.label }}</option>
     </optgroup>
   </select>
 </template>
