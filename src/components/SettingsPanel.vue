@@ -50,6 +50,10 @@ const BROWSERS: { value: Settings['cookiesFromBrowser']; label: string }[] = [
 const langs = ref(store.settings.subtitleLangs.join(', '))
 const proxy = ref(store.settings.proxy)
 const loginUsername = ref(store.settings.loginUsername)
+const encoders = ref<{ h264: string | null; h265: string | null }>({ h264: null, h265: null })
+onMounted(() => {
+  void guard(() => window.tuberx.tools.encoders()).then((e) => e && (encoders.value = e))
+})
 const loginPassword = ref('')
 const videoPassword = ref(store.settings.videoPassword)
 async function savePassword(): Promise<void> {
@@ -172,9 +176,25 @@ function commitProxy(): void {
         <Toggle
           :model-value="store.settings.convertNonMp4"
           label="Convert non-MP4 video to MP4"
-          hint="VP9, AV1 and WebM sources get remuxed or re-encoded."
+          hint="VP9, AV1 and WebM sources get remuxed into MP4 without re-encoding."
           @update:model-value="set('convertNonMp4', $event)"
         />
+        <label class="mt-2 block text-[12px]">
+          Video codec
+          <select class="tx-field mt-1" :value="store.settings.videoCodec" @change="set('videoCodec', ($event.target as HTMLSelectElement).value as Settings['videoCodec'])">
+            <option value="auto">Prefer H.264, keep the source codec otherwise (fastest)</option>
+            <option value="h264">Always H.264 (plays everywhere)</option>
+            <option value="h265">Always H.265 / HEVC (smaller files)</option>
+          </select>
+        </label>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">
+          <template v-if="store.settings.videoCodec === 'auto'">Sources already in H.264 are never re-encoded. Pick a codec to convert the rest.</template>
+          <template v-else>
+            Sources in another codec are re-encoded after the download with
+            <b>{{ (store.settings.videoCodec === 'h264' ? encoders.h264 : encoders.h265) ?? 'no available encoder' }}</b>.
+            Hardware encoders finish in a fraction of the play time; software takes about real time.
+          </template>
+        </p>
 
         <label class="mt-2 block text-[12px]">
           MP3 bitrate

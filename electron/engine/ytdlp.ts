@@ -187,7 +187,8 @@ function buildFormatArgs(format: FormatOption, settings: Settings): string[] {
   const args: string[] = ['-f', format.selector]
   // Resolution first, then prefer H.264 + AAC so the MP4 plays anywhere on Windows
   // without codec packs. With "keep original" the codec preference is dropped.
-  const codecPref = settings.convertNonMp4 ? ',vcodec:h264,acodec:aac' : ''
+  const wanted = settings.videoCodec === 'h265' ? 'hevc' : 'h264'
+  const codecPref = settings.convertNonMp4 || settings.videoCodec !== 'auto' ? `,vcodec:${wanted},acodec:aac` : ''
   if (format.sort) args.push('-S', `${format.sort}${format.kind === 'video' || format.kind === 'video-only' ? codecPref : ''}`)
   switch (format.kind) {
     case 'video':

@@ -148,6 +148,8 @@ export interface Settings {
   defaultFormatId: string
   applyDefaultToNew: boolean
   convertNonMp4: boolean
+  /** auto: prefer H.264 sources and remux; h264 / h265: re-encode anything else with the best encoder on the machine. */
+  videoCodec: 'auto' | 'h264' | 'h265'
   mp3Bitrate: 128 | 192 | 256 | 320
   saveThumbnail: boolean
   thumbnailFormat: 'jpg' | 'png'
@@ -190,6 +192,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultFormatId: 'v:best',
   applyDefaultToNew: false,
   convertNonMp4: true,
+  videoCodec: 'auto',
   mp3Bitrate: 320,
   saveThumbnail: false,
   thumbnailFormat: 'jpg',
@@ -213,7 +216,7 @@ export const DEFAULT_SETTINGS: Settings = {
   videoPassword: '',
   userAgent: 'default',
   autoUpdateEngine: true,
-  settingsVersion: 8,
+  settingsVersion: 9,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -294,6 +297,8 @@ export interface TuberXApi {
   tools: {
     status(): Promise<ToolStatus[]>
     updateEngine(): Promise<{ updated: boolean; version: string }>
+    /** Which encoder a conversion would use on this machine, per codec (null: none available). Probed once. */
+    encoders(): Promise<{ h264: string | null; h265: string | null }>
   }
   app: {
     info(): Promise<AppInfo>

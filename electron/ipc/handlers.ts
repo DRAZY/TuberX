@@ -11,6 +11,7 @@ import type { TuberDb } from '../db/database'
 import { checkAllTools } from '../engine/tools'
 import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
+import { bestEncoder } from '../engine/encoders'
 import { fetchMetadata } from '../engine/ytdlp'
 import type { QueueManager } from '../queue/manager'
 import { getSettings, patchSettings } from '../settings'
@@ -297,6 +298,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
 
   // ---- tools ----
   ipcMain.handle('tools:status', () => checkAllTools())
+  ipcMain.handle('tools:encoders', async () => ({ h264: (await bestEncoder('h264'))?.label ?? null, h265: (await bestEncoder('h265'))?.label ?? null }))
   ipcMain.handle('tools:updateEngine', async () => {
     const r = await updateEngine()
     if (r.updated) send('engine:updated', { to: r.version })

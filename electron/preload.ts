@@ -40,6 +40,7 @@ const api: TuberXApi = {
   tools: {
     status: () => invoke('tools:status'),
     updateEngine: () => invoke('tools:updateEngine'),
+    encoders: () => invoke('tools:encoders'),
   },
   app: {
     info: () => invoke('app:info'),

@@ -7,6 +7,7 @@ import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Se
 import { urlKey } from '../../shared/urls'
 import { TuberDb } from '../db/database'
 import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
+import { convertVideo } from '../engine/transcode'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -325,6 +326,24 @@ export class QueueManager extends EventEmitter {
         plan = { nameTag: qualityTag(format), overwrite: false }
         engineLog(row.id, `--- retry nameTag=${plan.nameTag}: kept existing ${result.outputPath || 'same-named file'}`)
         result = await run(plan)
+      }
+      if (!result.skipped && settings.videoCodec !== 'auto' && (format.kind === 'video' || format.kind === 'video-only')) {
+        // Forced codec: sources that arrived in anything else are re-encoded in place, with progress.
+        const used = await convertVideo(result.outputPath, settings.videoCodec, {
+          signal: ac.signal,
+          onLog: (line) => engineLog(row.id, line),
+          onProgress: (percent) => {
+            const r = this.rows.find((x) => x.id === row.id)
+            if (!r) return
+            r.progress = { stage: 'convert', percent }
+            if (r.status !== 'converting') {
+              r.status = 'converting'
+              this.emitChanged()
+            }
+            this.emit('progress', row.id, r.progress)
+          },
+        })
+        engineLog(row.id, used ? `converted to ${settings.videoCodec} with ${used}` : `already ${settings.videoCodec}; no conversion needed`)
       }
       if (result.skipped) {
         this.update(row.id, { status: 'skipped', outputPath: result.outputPath || undefined, progress: undefined })
