@@ -221,7 +221,8 @@ export class QueueManager extends EventEmitter {
     const format = media.formats.find((f) => f.id === row.formatId) ?? media.formats.find((f) => f.id === media.defaultFormatId)
     if (!format) return void this.update(row.id, { status: 'failed', error: 'no format available' })
 
-    if (settings.skipIfExists && !this.redo.delete(row.id) && this.db.historyHas(urlKey(row.url))) {
+    const force = this.redo.delete(row.id)
+    if (settings.skipIfExists && !force && this.db.historyHas(urlKey(row.url))) {
       this.update(row.id, { status: 'skipped', error: undefined })
       return this.pump()
     }
@@ -232,7 +233,7 @@ export class QueueManager extends EventEmitter {
     // A resumed row keeps its bar where it paused until the engine reports fresh numbers.
     const seed = row.progress?.stage === 'download' && row.progress.percent > 0 ? { ...row.progress, speed: undefined, eta: undefined } : { stage: 'download' as const, percent: 0 }
     this.update(row.id, { status: 'downloading', progress: seed })
-    engineLog(row.id, `--- start ${row.url} format=${format.id} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
+    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
     try {
       const result = await download({
         url: row.url,
@@ -241,6 +242,7 @@ export class QueueManager extends EventEmitter {
         destination: row.destination || settings.destination,
         settings,
         signal: ac.signal,
+        force,
         onLog: (line) => engineLog(row.id, line),
         onProgress: (p) => {
           const r = this.rows.find((x) => x.id === row.id)

@@ -5,7 +5,7 @@ project: TuberX
 phase: execute
 progress: 20/65
 started: 2026-09-02T18:45:00Z
-updated: 2026-09-03T04:45:00Z
+updated: 2026-09-03T05:20:00Z
 principal_stated_goal: "I need a Microsoft Windows equivalent to this."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -124,6 +124,7 @@ Why: the shell is cheap and the tools are the product; bundling, updating and is
 
 - [ ] ISC-1: `bun run build:win` produces a 64-bit NSIS installer in `release/`.
 - [ ] ISC-1.1: The same build produces a 64-bit portable `.exe` that runs without installing.
+- [ ] ISC-24.2: Download-again with a different format replaces the file with that format (ffprobe/ffmpeg shows the new resolution).
 - [ ] ISC-24.1: A download whose ffmpeg stage produces no output for 10 minutes is killed, including ffmpeg, and the row fails with a message naming the stage.
 - [x] ISC-1.2: `bun run build:mac` produces a `.dmg` that launches on macOS and resolves a URL.
 - [ ] ISC-2: The installer installs and launches TuberX on a clean Windows 10/11 x64 machine.
@@ -261,6 +262,7 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 - 2026-09-02 18:30: Andre: noticeable delay queuing links and starting downloads on both platforms, unlike the reference macOS downloader. Measured: `yt-dlp --version` alone took 7.8–8.4 s warm because the single-file PyInstaller build unpacks a Python runtime on every run; the reference macOS downloader's onedir `vydl` takes 0.9 s. Fixed by shipping yt-dlp's onedir zips (`yt-dlp_win.zip`, `yt-dlp_macos.zip`; 0.3 s warm after Gatekeeper's one-time scan), an updater that installs onedir builds, and removal of any legacy single-file copy in userData/bin (which resolveTool would otherwise still prefer). Downloads now start from the info JSON saved at fetch time (`--load-info-json`, refreshed if older than 3 h or rejected), skipping the second extraction. In-app: paste→ready 2.2 s, click→first progress 4.7 s. The PO-token helper is skipped when DNS sinkholes its endpoint.
 - 2026-09-02 18:30: Progress bar ran backwards because each of the 2+ files yt-dlp downloads (video, audio) reported its own 0–100 %. The bar now aggregates bytes across parts, caps at 95 % until the last part begins, never decreases, and shows "part n/m".
 - 2026-09-02 21:30: Andre: per-row Pause / Stop / Resume, and re-download in another format. Shipped in 0.2.10: Pause aborts the process tree but keeps partials (`paused` status, bar held); Resume restarts and aria2c `-c` / yt-dlp `--continue` pick the partial up (verified: paused at 18 %, resumed at 20 %); Stop aborts, deletes the temp-dir partials and returns the row to Ready; finished rows get a Download-again control, and an explicit re-download bypasses the history skip once. Found on the way: aria2c's status line defaults to every 60 s, so a fast transfer showed 0 % until 95 %; `--summary-interval=1` fixed it. `TUBERX_ARIA2_LIMIT` throttles aria2c for tests.
+- 2026-09-02 22:15: Andre: Download-again at a different quality re-produced the old file. Root cause in yt-dlp, not the picker: `--no-overwrites` treats an existing *output file name* as "already downloaded" regardless of format, prints `has already been downloaded`, skips the transfer, and post-processes the old file, so the row reported done with the same bytes. The format selection itself was correct (verified `--load-info-json` + `-S res:2160/1440/1080` → 315/308/299). Fix: an explicit re-download passes `--force-overwrites`; verified 240p (862 KB) → 144p (736 KB) with `force=true` in the engine log. Window default confirmed as option 1 (600×680).
 - 2026-09-02 11:45: Build order: F0 → F1 → F2 → F3 fixtures → F5 → F4 → F6 → F8 → F7 → F9.
 
 ## Learning
@@ -276,6 +278,8 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 - conjectured: decoding the child's stdout as UTF-8 with PYTHONIOENCODING set is enough for paths to round-trip. refuted by: reading yt-dlp's `write_string`, which encodes with the locale's preferred encoding and silently drops unencodable characters on Windows; the macOS locale is UTF-8, so every test here passed. learned: a path printed by a tool is only as good as the tool's output encoding; assert it (`--encoding utf-8`) rather than assume it, and keep a filesystem lookup as the fallback. criterion now: ISC-19.1.
 
 - conjectured: fetch latency is dominated by YouTube's API round-trips and would be the same in any yt-dlp front end. refuted by: timing `yt-dlp --version` (7.8 s) against the reference macOS downloader's onedir build (0.9 s) on the same machine; the network part of a fetch is ~1.5 s. learned: measure the engine's fixed cost before the variable one; a per-process unpack was the whole delay and no amount of network tuning would have found it. criterion now: ISC-10.1 timed (paste→ready ≤ 5 s on a warm engine) and ISC-19 timed (click→progress ≤ 8 s).
+
+- conjectured: a wrong format on re-download means the row's stored choice was overwritten somewhere in the UI. refuted by: the engine log showing the new format selected (`Downloading 1 format(s): 308+140`) while the output stayed identical, and the earlier log line `has already been downloaded` naming the final file. learned: yt-dlp's skip check is by file name only; a format change must be accompanied by an overwrite intent, and the log's "already downloaded" line is the signature. criterion now: ISC-24.2.
 
 ## Verification
 

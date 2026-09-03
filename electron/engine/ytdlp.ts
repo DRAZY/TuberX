@@ -142,6 +142,8 @@ export interface DownloadJob {
   destination: string
   settings: Settings
   signal?: AbortSignal
+  /** Explicit re-download: replace an existing output instead of treating it as already done. */
+  force?: boolean
   onProgress: (p: DownloadProgress) => void
   onLog?: (line: string) => void
 }
@@ -211,7 +213,9 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     '--embed-chapters',
     '--no-playlist',
   ]
-  if (settings.skipIfExists) args.push('--no-overwrites')
+  // yt-dlp treats an existing *file name* as "already downloaded" regardless of format, so a
+  // re-download at another quality would silently keep the old file. Force it when the user asked.
+  if (settings.skipIfExists && !job.force) args.push('--no-overwrites')
   else args.push('--force-overwrites')
 
   // Tags + artwork on everything that can carry them
