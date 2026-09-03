@@ -22,6 +22,7 @@ export const PRESET_FORMATS: PresetFormat[] = [
   { id: 'v:360', label: '360p', group: 'Video' },
   { id: 'a:mp3', label: 'MP3', group: 'Audio' },
   { id: 'a:m4a', label: 'M4A', group: 'Audio' },
+  { id: 'a:wav', label: 'WAV (lossless)', group: 'Audio' },
 ]
 
 export function presetLabel(id: string): string {
@@ -29,7 +30,7 @@ export function presetLabel(id: string): string {
 }
 
 export function isAudio(kind: FormatOption['kind']): boolean {
-  return kind === 'mp3' || kind === 'm4a' || kind === 'm4r'
+  return kind === 'mp3' || kind === 'm4a' || kind === 'wav' || kind === 'm4r'
 }
 
 /** Highest video rung the extractor offered, used for "best" labels and the upgrade hint. */
@@ -66,6 +67,8 @@ export function qualityBadge(option: FormatOption | undefined, bestHeight?: numb
       return 'MP3'
     case 'm4a':
       return 'M4A'
+    case 'wav':
+      return 'WAV'
     case 'm4r':
       return 'M4R'
     case 'video-only':

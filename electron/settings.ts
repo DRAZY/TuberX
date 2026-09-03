@@ -32,6 +32,7 @@ function migrate(s: Settings, from: number): Settings {
     next.cookiesFile = next.cookiesFile ?? ''
   }
   if (from < 4) next.forceIpv4 = true
+  if (from < 5 && next.mp3Bitrate === 192) next.mp3Bitrate = 320 // old default → new default; explicit other choices stay
   next.settingsVersion = DEFAULT_SETTINGS.settingsVersion
   store.set('settings', next)
   return next

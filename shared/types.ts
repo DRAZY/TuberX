@@ -3,7 +3,7 @@
  * The renderer never sees yt-dlp or ffmpeg directly; it only sees these types.
  */
 
-export type OutputKind = 'video' | 'video-only' | 'mp3' | 'm4a' | 'm4r'
+export type OutputKind = 'video' | 'video-only' | 'mp3' | 'm4a' | 'wav' | 'm4r'
 
 export interface FormatOption {
   /** Stable id used to select this option, e.g. "v:1080", "a:mp3" */
@@ -174,7 +174,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultFormatId: 'v:best',
   applyDefaultToNew: false,
   convertNonMp4: true,
-  mp3Bitrate: 192,
+  mp3Bitrate: 320,
   saveThumbnail: false,
   thumbnailFormat: 'jpg',
   embedSubtitles: true,
@@ -191,7 +191,7 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrentDownloads: 3,
   notifyOnComplete: true,
   autoUpdateEngine: true,
-  settingsVersion: 4,
+  settingsVersion: 5,
 }
 
 /** Events the main process pushes to the renderer. */

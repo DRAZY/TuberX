@@ -7,8 +7,8 @@ Downloads: [latest release](https://github.com/DRAZY/TuberX/releases/latest) · 
 ## Features
 
 - **Paste and go.** Ctrl+V anywhere in the window, right-click › Paste link, drag a link in, or drop a text file full of links. A playlist link opens a picker so you choose which videos to take.
-- **Quality you can see.** Every row shows a badge for what it will download (4K, 1080p, MP3 …) and a dropdown with the full ladder for that video, from best down to 360p, plus MP3 and M4A audio. An "Apply to all" control sets one choice for the whole list.
-- **Finished files.** MP4 with H.264/AAC preferred so it plays on stock Windows, subtitles embedded (auto-captions as fallback), chapters from the video's timestamps, cover art, and title/artist tags. MP3 at your chosen bitrate. M4A as the original stream, no re-encode.
+- **Quality you can see.** Every row shows a badge for what it will download (4K, 1080p, MP3 …) and a dropdown with the full ladder for that video, from best down to 360p, plus MP3, M4A and WAV audio. An "Apply to all" control sets one choice for the whole list.
+- **Finished files.** MP4 with H.264/AAC preferred so it plays on stock Windows, subtitles embedded (auto-captions as fallback), chapters from the video's timestamps, cover art, and title/artist tags. MP3 at your chosen bitrate (320 kbps by default). M4A as the original stream, no re-encode. WAV as lossless 16-bit PCM for editing.
 - **Fast.** Sixteen connections per file through aria2c, parallel fragment downloads for HLS/DASH sites, up to eight downloads at once, and a merge step that uses every CPU core. Links resolve in a couple of seconds and downloads begin immediately from the metadata already fetched.
 - **Reliable.** A stalled download is detected and stopped after ten minutes of silence with the stage named. Failed rows stay in the list with the reason and a Retry. Every engine line is logged for support.
 - **Download Later and History.** Park links for later, send them to the queue in one click, and keep a searchable record of what you downloaded and where it went, with duplicate detection across all three lists.
@@ -26,6 +26,10 @@ YouTube (videos, Shorts, playlists, channels), Vimeo, Facebook, Instagram, Daily
 - **macOS (Apple silicon):** open the `.dmg` and drag TuberX to Applications. Builds are unsigned, so the first launch needs a right-click › Open.
 
 Installed copies are offered new versions on launch.
+
+## Window
+
+TuberX opens as a compact applet (600×680) centred on your main display, painted before it is shown so there is no white flash. Resize or move it and it reopens exactly there next time; if that spot is no longer on a connected display it falls back to the centred default. Minimum size is 480×420.
 
 ## Settings
 

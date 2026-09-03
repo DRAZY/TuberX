@@ -116,6 +116,7 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
   const bestAbr = audioFormats.reduce((m, f) => Math.max(m, f.abr ?? f.tbr ?? 0), 0)
   out.push({ id: 'a:mp3', kind: 'mp3', label: 'MP3 audio', abr: bestAbr || undefined, selector: 'ba/b' })
   out.push({ id: 'a:m4a', kind: 'm4a', label: 'M4A audio (original)', abr: bestAbr || undefined, selector: 'ba[ext=m4a]/ba/b' })
+  out.push({ id: 'a:wav', kind: 'wav', label: 'WAV audio (lossless PCM)', abr: bestAbr || undefined, selector: 'ba/b' })
   return out
 }
 

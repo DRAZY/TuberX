@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Menu, Notification, shell } from 'electron'
+import { app, BrowserWindow, Menu, Notification, screen, shell } from 'electron'
+import Store from 'electron-store'
 import { join } from 'node:path'
 import { existsSync, mkdirSync } from 'node:fs'
 import { parseDeepLink } from '../shared/urls'
@@ -52,12 +53,31 @@ function deliverLink(raw: string) {
   else pendingLinks.push(link)
 }
 
+/** Default window: a compact applet, centred; size and position remembered between launches. */
+const DEFAULT_BOUNDS = { width: 600, height: 680 }
+const MIN_BOUNDS = { width: 480, height: 420 }
+const windowStore = new Store<{ bounds?: { x: number; y: number; width: number; height: number } }>({ name: 'window' })
+
+/** Saved bounds only if they still land on a connected display; otherwise the centred default. */
+function restoredBounds(): { x?: number; y?: number; width: number; height: number } {
+  const saved = windowStore.get('bounds')
+  if (!saved) return DEFAULT_BOUNDS
+  const visible = screen.getAllDisplays().some((d) => {
+    const a = d.workArea
+    return saved.x + 40 < a.x + a.width && saved.x + saved.width - 40 > a.x && saved.y + 20 < a.y + a.height && saved.y >= a.y - 8
+  })
+  if (!visible) return DEFAULT_BOUNDS
+  return { ...saved, width: Math.max(MIN_BOUNDS.width, saved.width), height: Math.max(MIN_BOUNDS.height, saved.height) }
+}
+
 function createWindow() {
+  const bounds = restoredBounds()
   win = new BrowserWindow({
-    width: 560,
-    height: 640,
-    minWidth: 480,
-    minHeight: 420,
+    ...bounds,
+    center: bounds.x === undefined,
+    minWidth: MIN_BOUNDS.width,
+    minHeight: MIN_BOUNDS.height,
+    show: false, // paint first, then show: no white flash, no half-drawn frame
     backgroundColor: '#1c1c1e',
     title: 'TuberX',
     titleBarStyle: 'hidden',
@@ -84,6 +104,14 @@ function createWindow() {
   } else {
     void win.loadFile(join(__dirname, '../dist/index.html'))
   }
+  win.once('ready-to-show', () => win?.show())
+  const saveBounds = () => {
+    if (!win || win.isMinimized() || win.isFullScreen()) return
+    windowStore.set('bounds', win.getNormalBounds())
+  }
+  win.on('resize', saveBounds)
+  win.on('move', saveBounds)
+  win.on('close', saveBounds)
   win.on('closed', () => (win = null))
 }
 

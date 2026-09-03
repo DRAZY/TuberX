@@ -171,6 +171,10 @@ function buildFormatArgs(format: FormatOption, settings: Settings): string[] {
     case 'm4a':
       args.push('-x', '--audio-format', 'm4a')
       break
+    case 'wav':
+      // Uncompressed 16-bit PCM at the source sample rate; ffmpeg decodes the best audio stream once.
+      args.push('-x', '--audio-format', 'wav')
+      break
     case 'm4r':
       args.push('-x', '--audio-format', 'm4a')
       break
@@ -211,7 +215,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   else args.push('--force-overwrites')
 
   // Tags + artwork on everything that can carry them
-  if (format.kind !== 'video-only') args.push('--embed-thumbnail')
+  if (format.kind !== 'video-only' && format.kind !== 'wav') args.push('--embed-thumbnail') // WAV cannot carry cover art
   if (settings.saveThumbnail) {
     args.push('--write-thumbnail', '--convert-thumbnails', settings.thumbnailFormat)
     if (format.kind === 'video-only') args.push('--no-embed-thumbnail')

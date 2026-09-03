@@ -25,7 +25,7 @@ describe('normalizeMedia — single video', () => {
     expect(ids).toContain('v:2160')
     expect(ids).toContain('v:1080')
     expect(ids).toContain('v:360')
-    expect(ids.slice(-2)).toEqual(['a:mp3', 'a:m4a'])
+    expect(ids.slice(-3)).toEqual(['a:mp3', 'a:m4a', 'a:wav'])
     expect(m.defaultFormatId).toBe('v:best')
     expect(m.formats.find((f) => f.id === 'v:1080')?.sort).toBe('res:1080')
   })
