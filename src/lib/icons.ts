@@ -18,6 +18,9 @@ export type IconName =
   | 'globe'
   | 'external'
   | 'alert'
+  | 'pause'
+  | 'stop'
+  | 'redo'
 
 export interface IconDef {
   d: string[]
@@ -46,6 +49,9 @@ export const ICONS: Record<IconName, IconDef> = {
     ],
   },
   refresh: { d: ['M20.5 11A8.5 8.5 0 1 0 19 15.8', 'M20.5 5.5V11H15'] },
+  pause: { d: ['M8 5v14', 'M16 5v14'] },
+  stop: { d: ['M6 6h12v12H6z'] },
+  redo: { d: ['M20 6v6h-6', 'M20 12a8 8 0 1 0-2.3 5.7'] },
   play: { d: ['M8.5 5.5v13l11-6.5z'], filled: true },
   download: { d: ['M12 3v12', 'm8 11 4 4 4-4', 'M4 19h16'] },
   chevron: { d: ['m6 9 6 6 6-6'] },

@@ -52,6 +52,8 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('queue:setFormatAll', (_e, formatId: string) => queue.setFormatAll(formatId))
   ipcMain.handle('queue:start', (_e, ids: string[]) => queue.start(ids))
   ipcMain.handle('queue:cancel', (_e, id: string) => queue.cancel(id))
+  ipcMain.handle('queue:pause', (_e, id: string) => queue.pause(id))
+  ipcMain.handle('queue:resume', (_e, id: string) => queue.resume(id))
   ipcMain.handle('queue:retry', (_e, id: string) => queue.retry(id))
   ipcMain.handle('queue:list', () => queue.list())
   ipcMain.handle('queue:expandPlaylist', (_e, rowId: string, urls: string[]) => queue.expandPlaylist(rowId, urls))
@@ -88,8 +90,11 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     const items: Electron.MenuItemConstructorOptions[] = []
     if (kind === 'row' && row) {
       const canStart = !!row.media && !row.media.isPlaylist && ['ready', 'failed', 'cancelled', 'skipped', 'done'].includes(row.status)
+      const active = row.status === 'downloading' || row.status === 'converting' || row.status === 'queued'
       items.push(
-        { label: row.status === 'done' ? 'Download again' : 'Download', enabled: canStart, click: () => queue.start([row.id]) },
+        { label: row.status === 'done' ? 'Download again' : row.status === 'paused' ? 'Resume' : 'Download', enabled: canStart, click: () => queue.start([row.id]) },
+        { label: 'Pause', enabled: active && row.status !== 'converting', click: () => queue.pause(row.id) },
+        { label: 'Stop', enabled: active || row.status === 'paused', click: () => queue.cancel(row.id) },
         { label: 'Copy link', click: () => clipboard.writeText(row.media?.webpageUrl ?? row.url) },
         { label: 'Open page in browser', click: () => void shell.openExternal(row.media?.webpageUrl ?? row.url) },
         { label: 'Reveal file', enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },

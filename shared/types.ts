@@ -81,6 +81,7 @@ export type RowStatus =
   | 'done'
   | 'failed'
   | 'cancelled'
+  | 'paused'
   | 'skipped'
 
 export interface QueueRow {
@@ -216,7 +217,11 @@ export interface TuberXApi {
   setFormat(id: string, formatId: string): Promise<void>
   setFormatAll(formatId: string): Promise<void>
   startDownload(ids: string[]): Promise<void>
+  /** Stop: kill the transfer, discard partial files, return the row to Ready with the format picker live. */
   cancelDownload(id: string): Promise<void>
+  /** Pause: kill the transfer but keep partial files and progress; Resume continues them. */
+  pauseDownload(id: string): Promise<void>
+  resumeDownload(id: string): Promise<void>
   retry(id: string): Promise<void>
   getQueue(): Promise<QueueRow[]>
   expandPlaylist(rowId: string, entryUrls: string[]): Promise<void>

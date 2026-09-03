@@ -5,7 +5,7 @@ project: TuberX
 phase: execute
 progress: 20/65
 started: 2026-09-02T18:45:00Z
-updated: 2026-09-03T01:35:00Z
+updated: 2026-09-03T04:45:00Z
 principal_stated_goal: "I need a Microsoft Windows equivalent to this."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -260,6 +260,7 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 - 2026-09-02 17:40: Portable launch optimization, format unchanged (EXE). Measured against Deemix's portable (103 MB, 382 MB / 76 files unpacked) TuberX was 236 MB, 861 MB / 6,170 files; the electron-builder portable stub always wipes, extracts and deletes on every run (read `portable.nsi`), so launch time is the file count under Defender. Changes: the PO-token helper is esbuild-bundled to one file with jsdom's stylesheet inlined and its sync-XHR worker resolve neutralized; css-tree stays external (runtime JSON loads) with mdn-data and source-map-js; node_modules per platform went from 6,088 files / 105 MB to ~380 files / 35 MB, verified under Deno (`--version` 1.3.2, reaches BotGuard, listed by yt-dlp). ffprobe dropped (unused, 138 MB). Fragment parallelism scales to half the CPU count (max 8); ffmpeg already threads across all cores.
 - 2026-09-02 18:30: Andre: noticeable delay queuing links and starting downloads on both platforms, unlike the reference macOS downloader. Measured: `yt-dlp --version` alone took 7.8–8.4 s warm because the single-file PyInstaller build unpacks a Python runtime on every run; the reference macOS downloader's onedir `vydl` takes 0.9 s. Fixed by shipping yt-dlp's onedir zips (`yt-dlp_win.zip`, `yt-dlp_macos.zip`; 0.3 s warm after Gatekeeper's one-time scan), an updater that installs onedir builds, and removal of any legacy single-file copy in userData/bin (which resolveTool would otherwise still prefer). Downloads now start from the info JSON saved at fetch time (`--load-info-json`, refreshed if older than 3 h or rejected), skipping the second extraction. In-app: paste→ready 2.2 s, click→first progress 4.7 s. The PO-token helper is skipped when DNS sinkholes its endpoint.
 - 2026-09-02 18:30: Progress bar ran backwards because each of the 2+ files yt-dlp downloads (video, audio) reported its own 0–100 %. The bar now aggregates bytes across parts, caps at 95 % until the last part begins, never decreases, and shows "part n/m".
+- 2026-09-02 21:30: Andre: per-row Pause / Stop / Resume, and re-download in another format. Shipped in 0.2.10: Pause aborts the process tree but keeps partials (`paused` status, bar held); Resume restarts and aria2c `-c` / yt-dlp `--continue` pick the partial up (verified: paused at 18 %, resumed at 20 %); Stop aborts, deletes the temp-dir partials and returns the row to Ready; finished rows get a Download-again control, and an explicit re-download bypasses the history skip once. Found on the way: aria2c's status line defaults to every 60 s, so a fast transfer showed 0 % until 95 %; `--summary-interval=1` fixed it. `TUBERX_ARIA2_LIMIT` throttles aria2c for tests.
 - 2026-09-02 11:45: Build order: F0 → F1 → F2 → F3 fixtures → F5 → F4 → F6 → F8 → F7 → F9.
 
 ## Learning

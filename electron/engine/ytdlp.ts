@@ -243,13 +243,17 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   // prepended to PATH in run(); the explicit path below is belt and braces on Windows.
   const aria2 = settings.useAria2 ? resolveTool('aria2c') : null
   if (aria2) {
+    // --summary-interval=1: aria2c prints its "[#gid done/total(pct%) CN DL ETA]" line once a second; the
+    // default is every 60 s, which left the bar at 0 % for the whole of a fast transfer. Notice-level
+    // console output must stay on for those lines to appear.
+    const aria2Args = ['-c', '-x', '16', '-s', '16', '-k', '1M', '--min-split-size=1M', '--file-allocation=none', '--max-tries=5', '--retry-wait=2', '--summary-interval=1']
+    if (process.env.TUBERX_ARIA2_LIMIT) aria2Args.push(`--max-overall-download-limit=${process.env.TUBERX_ARIA2_LIMIT}`) // dev/test throttle
     args.push(
       '--downloader', aria2,
       // HLS/DASH fragment streams (Vimeo, Dailymotion …) stay on yt-dlp's native downloader:
       // aria2c cannot handle their encrypted fragments and yt-dlp reports them as DRM.
       '--downloader', 'dash,m3u8:native',
-      '--downloader-args',
-      'aria2c:-x 16 -s 16 -k 1M --min-split-size=1M --file-allocation=none --max-tries=5 --retry-wait=2 --console-log-level=warn',
+      '--downloader-args', `aria2c:${aria2Args.join(' ')}`,
     )
   }
 

@@ -260,13 +260,44 @@ function openPlaylist(): void {
             </div>
           </div>
           <button
+            v-if="progress?.stage === 'download'"
             type="button"
             class="shrink-0 text-tx-muted hover:text-tx-text"
-            title="Cancel"
-            aria-label="Cancel"
+            title="Pause (keeps what has been downloaded)"
+            aria-label="Pause"
+            @click="queue.pause(row.id)"
+          >
+            <Icon name="pause" :size="14" />
+          </button>
+          <button
+            type="button"
+            class="shrink-0 text-tx-muted hover:text-red-400"
+            title="Stop and discard (pick another format, then Download)"
+            aria-label="Stop"
             @click="queue.cancel(row.id)"
           >
-            <Icon name="close" :size="14" />
+            <Icon name="stop" :size="14" />
+          </button>
+        </template>
+
+        <template v-else-if="status === 'paused'">
+          <div class="min-w-0 flex-1">
+            <div class="h-1.5 w-full overflow-hidden rounded-full bg-tx-border">
+              <div class="h-full rounded-full bg-tx-accent/50" :style="{ width: `${percent}%` }" />
+            </div>
+            <div class="mt-1 text-[10px] text-tx-muted">Paused at {{ percent.toFixed(0) }}%</div>
+          </div>
+          <button type="button" class="tx-btn-accent flex items-center gap-1" @click="queue.resume(row.id)">
+            <Icon name="play" :size="12" /> Resume
+          </button>
+          <button
+            type="button"
+            class="shrink-0 text-tx-muted hover:text-red-400"
+            title="Stop and discard"
+            aria-label="Stop"
+            @click="queue.cancel(row.id)"
+          >
+            <Icon name="stop" :size="14" />
           </button>
         </template>
 
@@ -279,6 +310,15 @@ function openPlaylist(): void {
             @click="queue.reveal(row.outputPath ?? '')"
           >
             Reveal
+          </button>
+          <button
+            type="button"
+            class="shrink-0 text-tx-muted hover:text-tx-text"
+            title="Download again (pick a different format first if you like)"
+            aria-label="Download again"
+            @click="queue.start([row.id])"
+          >
+            <Icon name="redo" :size="14" />
           </button>
         </template>
 

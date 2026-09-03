@@ -120,6 +120,12 @@ export const useQueueStore = defineStore('queue', () => {
     await guard(() => window.tuberx.cancelDownload(id))
   }
 
+  async function pause(id: string): Promise<void> {
+    await guard(() => window.tuberx.pauseDownload(id))
+  }
+  async function resume(id: string): Promise<void> {
+    await guard(() => window.tuberx.resumeDownload(id))
+  }
   async function retry(id: string): Promise<void> {
     await guard(() => window.tuberx.retry(id))
   }
@@ -173,6 +179,8 @@ export const useQueueStore = defineStore('queue', () => {
     startAll,
     cancel,
     retry,
+    pause,
+    resume,
     expandPlaylist,
     reveal,
     refresh,
