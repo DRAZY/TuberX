@@ -28,6 +28,10 @@ YouTube (videos, Shorts, playlists, channels), Vimeo, Facebook, Instagram, Daily
 
 Installed copies are offered new versions on launch.
 
+### macOS: first launch
+
+The Mac build is signed ad hoc, not notarized with an Apple developer certificate, so the first launch shows "Apple could not verify TuberX is free of malware". Click Done, open System Settings → Privacy & Security, scroll to the notice about TuberX and click **Open Anyway**. Right-click → Open on the app also works. This is a one-time step; updates keep the permission.
+
 ## Window
 
 TuberX opens as a compact applet (600×680) centred on your main display, painted before it is shown so there is no white flash. Resize or move it and it reopens exactly there next time; if that spot is no longer on a connected display it falls back to the centred default. Minimum size is 480×420.
