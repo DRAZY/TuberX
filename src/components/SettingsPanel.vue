@@ -253,6 +253,19 @@ function commitProxy(): void {
           @update:model-value="set('skipIfExists', $event)"
         />
         <label class="mt-2 block text-[12px]">
+          When the queue finishes
+          <select
+            class="tx-field mt-1"
+            :value="store.settings.onQueueDone"
+            @change="set('onQueueDone', ($event.target as HTMLSelectElement).value as Settings['onQueueDone'])"
+          >
+            <option value="none">Do nothing</option>
+            <option value="open-folder">Open the destination folder</option>
+            <option value="sleep">Put the computer to sleep (30 s warning)</option>
+            <option value="shutdown">Shut the computer down (30 s warning)</option>
+          </select>
+        </label>
+        <label class="mt-2 block text-[12px]">
           Concurrent downloads
           <select
             class="tx-field mt-1"

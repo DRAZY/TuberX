@@ -70,10 +70,10 @@ export const useQueueStore = defineStore('queue', () => {
 
   // --- actions -------------------------------------------------------------
 
-  async function addUrls(urls: string[]): Promise<void> {
+  async function addUrls(urls: string[], download = false): Promise<void> {
     const clean = urls.filter(Boolean)
     if (!clean.length) return
-    const res = await guard(() => window.tuberx.addUrls(clean))
+    const res = await guard(() => window.tuberx.addUrls(clean, download))
     if (!res) return
     if (res.added) ui.toast('success', `Added ${res.added} link${res.added === 1 ? '' : 's'}`)
     if (res.duplicates.length) {
@@ -82,6 +82,14 @@ export const useQueueStore = defineStore('queue', () => {
     }
     if (!res.added && !res.duplicates.length) ui.toast('warn', 'Nothing to add')
     await refresh()
+  }
+
+  async function reorder(ids: string[]): Promise<void> {
+    // Optimistic: the list re-sorts at once, the main process confirms with queue:changed.
+    const byId = new Map(rows.value.map((r) => [r.id, r]))
+    const listed = ids.map((id) => byId.get(id)).filter((r): r is QueueRow => !!r)
+    rows.value = [...listed, ...rows.value.filter((r) => !ids.includes(r.id))]
+    await guard(() => window.tuberx.reorderRows(ids))
   }
 
   async function remove(ids: string[]): Promise<void> {
@@ -136,6 +144,11 @@ export const useQueueStore = defineStore('queue', () => {
     await refresh()
   }
 
+  async function open(path: string): Promise<void> {
+    if (!path) return
+    await guard(() => window.tuberx.shell.open(path))
+  }
+
   async function reveal(path: string): Promise<void> {
     if (!path) return
     await guard(() => window.tuberx.shell.reveal(path))
@@ -173,6 +186,7 @@ export const useQueueStore = defineStore('queue', () => {
     clearSelection,
     addUrls,
     remove,
+    reorder,
     setFormat,
     setFormatAll,
     start,
@@ -183,6 +197,7 @@ export const useQueueStore = defineStore('queue', () => {
     resume,
     expandPlaylist,
     reveal,
+    open,
     refresh,
     bind,
   }

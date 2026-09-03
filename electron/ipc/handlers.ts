@@ -1,7 +1,8 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron'
 import { extractUrls } from '../../shared/urls'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, mkdirSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { AppInfo, LaterEntry, MainEvents, Settings } from '../../shared/types'
@@ -17,6 +18,59 @@ export function send<K extends keyof MainEvents>(event: K, payload: MainEvents[K
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send(event, payload)
 }
 
+/** Open a finished file in its default application. */
+export async function openFile(path: string): Promise<void> {
+  if (!existsSync(path)) return send('toast', { kind: 'warn', message: 'That file is no longer there' })
+  const err = await shell.openPath(path)
+  if (err) send('toast', { kind: 'error', message: err })
+}
+
+/** Windows shows its own "Open with" chooser; macOS has no such dialog, so an application picker stands in. */
+export async function openWith(path: string, win?: BrowserWindow): Promise<void> {
+  if (!existsSync(path)) return send('toast', { kind: 'warn', message: 'That file is no longer there' })
+  if (process.platform === 'win32') {
+    spawn('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', path], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+    return
+  }
+  const res = await dialog.showOpenDialog(win!, {
+    title: 'Open with',
+    defaultPath: '/Applications',
+    properties: ['openFile'],
+    filters: [{ name: 'Applications', extensions: ['app'] }],
+  })
+  const appPath = res.filePaths[0]
+  if (!appPath) return
+  spawn('open', ['-a', appPath, path], { detached: true, stdio: 'ignore' }).unref()
+}
+
+// ---- power actions after the queue drains ----
+let powerTimer: NodeJS.Timeout | undefined
+let powerTick: NodeJS.Timeout | undefined
+export function cancelPowerAction(): void {
+  if (powerTimer) clearTimeout(powerTimer)
+  if (powerTick) clearInterval(powerTick)
+  powerTimer = powerTick = undefined
+  send('power:countdown', { action: 'sleep', seconds: 0 })
+}
+/** Sleep or shut down after a 30 s countdown the renderer shows with a Cancel. */
+export function schedulePowerAction(action: 'sleep' | 'shutdown'): void {
+  cancelPowerAction()
+  let left = 30
+  send('power:countdown', { action, seconds: left })
+  powerTick = setInterval(() => send('power:countdown', { action, seconds: --left }), 1000)
+  powerTimer = setTimeout(() => {
+    if (powerTick) clearInterval(powerTick)
+    powerTimer = powerTick = undefined
+    if (process.platform === 'win32') {
+      const args = action === 'sleep' ? ['powrprof.dll,SetSuspendState', '0,1,0'] : ['/s', '/t', '5']
+      spawn(action === 'sleep' ? 'rundll32.exe' : 'shutdown', args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+    } else {
+      const script = action === 'sleep' ? 'tell application "System Events" to sleep' : 'tell application "System Events" to shut down'
+      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref()
+    }
+  }, 30_000)
+}
+
 export function registerIpc(queue: QueueManager, db: TuberDb) {
   queue.on('changed', (rows) => send('queue:changed', rows))
   queue.on('progress', (id, progress) => send('row:progress', { id, progress }))
@@ -25,10 +79,10 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   const laterChanged = () => send('later:changed', db.listLater())
 
   // ---- queue ----
-  ipcMain.handle('queue:add', (_e, urls: string[]) => {
+  ipcMain.handle('queue:add', (_e, urls: string[], download = false) => {
     const settings = getSettings()
     const inLater = urls.filter((u) => db.laterHas(urlKey(u)))
-    const result = queue.add(urls)
+    const result = queue.add(urls, download)
     if (result.duplicates.length)
       send('toast', {
         kind: 'info',
@@ -49,6 +103,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   })
   ipcMain.handle('queue:remove', (_e, ids: string[]) => queue.remove(ids))
   ipcMain.handle('queue:setFormat', (_e, id: string, formatId: string) => queue.setFormat(id, formatId))
+  ipcMain.handle('queue:reorder', (_e, ids: string[]) => queue.reorder(ids))
   ipcMain.handle('queue:setFormatAll', (_e, formatId: string) => queue.setFormatAll(formatId))
   ipcMain.handle('queue:start', (_e, ids: string[]) => queue.start(ids))
   ipcMain.handle('queue:cancel', (_e, id: string) => queue.cancel(id))
@@ -65,20 +120,8 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
       send('toast', { kind: 'info', message: 'No link on the clipboard' })
       return { found: 0, added: 0 }
     }
-    const before = new Set(queue.list().map((r) => r.id))
-    const result = queue.add(urls)
+    const result = queue.add(urls, download)
     if (result.duplicates.length === urls.length) send('toast', { kind: 'info', message: 'Already in the list' })
-    if (download) {
-      // download once metadata resolves: poll the new rows briefly
-      const fresh = queue.list().filter((r) => !before.has(r.id)).map((r) => r.id)
-      const tick = () => {
-        const rows = queue.list().filter((r) => fresh.includes(r.id))
-        const ready = rows.filter((r) => r.status === 'ready' && r.media && !r.media.isPlaylist).map((r) => r.id)
-        if (ready.length) queue.start(ready)
-        if (rows.some((r) => r.status === 'fetching')) setTimeout(tick, 1000)
-      }
-      setTimeout(tick, 1000)
-    }
     return { found: urls.length, added: result.added }
   }
   ipcMain.handle('queue:pasteClipboard', (_e, download: boolean) => pasteClipboard(download))
@@ -108,6 +151,11 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
         { label: 'Stop', enabled: active || row.status === 'paused', click: () => queue.cancel(row.id) },
         { label: 'Copy link', click: () => clipboard.writeText(row.media?.webpageUrl ?? row.url) },
         { label: 'Open page in browser', click: () => void shell.openExternal(row.media?.webpageUrl ?? row.url) },
+        { type: 'separator' },
+        { label: 'Open file', enabled: !!row.outputPath && row.status === 'done', click: () => void openFile(row.outputPath!) },
+        { label: 'Open with…', enabled: !!row.outputPath && row.status === 'done', click: () => void openWith(row.outputPath!, win) },
+        { label: 'Reveal in folder', enabled: !!row.outputPath, click: () => shell.showItemInFolder(row.outputPath!) },
+        { label: 'Copy file path', enabled: !!row.outputPath, click: () => clipboard.writeText(row.outputPath!) },
         { label: 'Reveal file', enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },
         { type: 'separator' },
         { label: 'Remove from list', click: () => queue.remove([row.id]) },
@@ -249,6 +297,9 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
 
   // ---- shell ----
   ipcMain.handle('shell:reveal', (_e, path: string) => shell.showItemInFolder(path))
+  ipcMain.handle('shell:open', (_e, path: string) => void openFile(path))
+  ipcMain.handle('shell:openWith', async (e, path: string) => openWith(path, BrowserWindow.fromWebContents(e.sender) ?? undefined))
+  ipcMain.handle('power:cancel', () => cancelPowerAction())
   ipcMain.handle('shell:openExternal', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) return shell.openExternal(url)
   })

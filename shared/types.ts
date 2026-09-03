@@ -169,6 +169,8 @@ export interface Settings {
   useAria2: boolean
   concurrentDownloads: 1 | 2 | 3 | 4 | 5 | 6 | 8
   notifyOnComplete: boolean
+  /** What happens once the last download in the queue finishes. */
+  onQueueDone: 'none' | 'open-folder' | 'sleep' | 'shutdown'
   autoUpdateEngine: boolean
   /** Bumped when a default changes in a way existing installs should adopt. */
   settingsVersion: number
@@ -197,8 +199,9 @@ export const DEFAULT_SETTINGS: Settings = {
   useAria2: true,
   concurrentDownloads: 3,
   notifyOnComplete: true,
+  onQueueDone: 'none',
   autoUpdateEngine: true,
-  settingsVersion: 6,
+  settingsVersion: 7,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -214,6 +217,8 @@ export interface MainEvents {
   'url:incoming': { url: string; later: boolean }
   'ui:selectAll': null
   'ui:about': null
+  /** A sleep or shutdown is about to happen; the renderer shows the countdown with a Cancel. `seconds` 0 = cancelled. */
+  'power:countdown': { action: 'sleep' | 'shutdown'; seconds: number }
   'toast': { kind: ToastKind; message: string }
 }
 
@@ -233,8 +238,10 @@ export interface AppInfo {
 
 /** The bridge the preload exposes as window.tuberx. */
 export interface TuberXApi {
-  addUrls(urls: string[]): Promise<{ added: number; duplicates: string[] }>
+  addUrls(urls: string[], download?: boolean): Promise<{ added: number; duplicates: string[] }>
   removeRows(ids: string[]): Promise<void>
+  /** New order for the whole list; rows download in list order. */
+  reorderRows(ids: string[]): Promise<void>
   setFormat(id: string, formatId: string): Promise<void>
   setFormatAll(formatId: string): Promise<void>
   startDownload(ids: string[]): Promise<void>
@@ -276,8 +283,16 @@ export interface TuberXApi {
   app: {
     info(): Promise<AppInfo>
   }
+  power: {
+    /** Stop a pending sleep or shutdown. */
+    cancel(): Promise<void>
+  }
   shell: {
     reveal(path: string): Promise<void>
+    /** Open the file in its default app. */
+    open(path: string): Promise<void>
+    /** The OS "open with" chooser (Windows) or an application picker (macOS). */
+    openWith(path: string): Promise<void>
     openExternal(url: string): Promise<void>
     /** Reveal the folder holding engine.log, the first thing to send with a problem report. */
     openLogs(): Promise<void>

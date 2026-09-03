@@ -4,9 +4,10 @@ import type { MainEvents, TuberXApi } from '../shared/types'
 const invoke = <T>(channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args) as Promise<T>
 
 const api: TuberXApi = {
-  addUrls: (urls) => invoke('queue:add', urls),
+  addUrls: (urls, download) => invoke('queue:add', urls, download ?? false),
   removeRows: (ids) => invoke('queue:remove', ids),
   setFormat: (id, formatId) => invoke('queue:setFormat', id, formatId),
+  reorderRows: (ids) => invoke('queue:reorder', ids),
   setFormatAll: (formatId) => invoke('queue:setFormatAll', formatId),
   startDownload: (ids) => invoke('queue:start', ids),
   cancelDownload: (id) => invoke('queue:cancel', id),
@@ -42,8 +43,13 @@ const api: TuberXApi = {
   app: {
     info: () => invoke('app:info'),
   },
+  power: {
+    cancel: () => invoke('power:cancel'),
+  },
   shell: {
     reveal: (path) => invoke('shell:reveal', path),
+    open: (path) => invoke('shell:open', path),
+    openWith: (path) => invoke('shell:openWith', path),
     openExternal: (url) => invoke('shell:openExternal', url),
     openLogs: () => invoke('shell:openLogs'),
   },

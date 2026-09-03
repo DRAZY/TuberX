@@ -26,6 +26,8 @@ export class QueueManager extends EventEmitter {
   private pausing = new Set<string>()
   /** Rows the user explicitly asked to download again: skip the "already in history" shortcut once. */
   private redo = new Set<string>()
+  /** Rows to start the moment their metadata resolves (paste-and-download, clipboard strip). */
+  private autoStart = new Set<string>()
   private active = 0
   private getSettings: () => Settings
 
@@ -62,7 +64,7 @@ export class QueueManager extends EventEmitter {
     return new Set(this.rows.map((r) => urlKey(r.url)))
   }
 
-  add(urls: string[]): { added: number; duplicates: string[] } {
+  add(urls: string[], download = false): { added: number; duplicates: string[] } {
     const settings = this.getSettings()
     const existing = this.keys()
     const duplicates: string[] = []
@@ -85,6 +87,7 @@ export class QueueManager extends EventEmitter {
       this.rows.push(row)
       this.persist(row)
       added++
+      if (download) this.autoStart.add(row.id)
       void this.fetch(row.id)
     }
     this.emitChanged()
@@ -128,6 +131,7 @@ export class QueueManager extends EventEmitter {
       const media: MediaItem = await fetchMetadata(row.url, this.getSettings(), { signal: ac.signal })
       const formatId = pickFormat(media, row.formatId)
       this.update(id, { media, formatId, status: 'ready' })
+      if (this.autoStart.delete(id) && !media.isPlaylist) this.start([id])
     } catch (e) {
       if (ac.signal.aborted) return
       this.update(id, { status: 'failed', error: (e as Error).message })
@@ -140,6 +144,16 @@ export class QueueManager extends EventEmitter {
     for (const id of ids) this.aborters.get(id)?.abort()
     this.rows = this.rows.filter((r) => !ids.includes(r.id))
     this.db.deleteRows(ids)
+    this.emitChanged()
+  }
+
+  /** Put the rows in the given order (ids not listed keep their relative order at the end); order is download order. */
+  reorder(ids: string[]) {
+    const wanted = new Map(ids.map((id, i) => [id, i]))
+    const listed = this.rows.filter((r) => wanted.has(r.id)).sort((a, b) => wanted.get(a.id)! - wanted.get(b.id)!)
+    const rest = this.rows.filter((r) => !wanted.has(r.id))
+    this.rows = [...listed, ...rest]
+    for (const r of this.rows) this.persist(r)
     this.emitChanged()
   }
 
@@ -349,6 +363,8 @@ export class QueueManager extends EventEmitter {
       this.aborters.delete(row.id)
       this.active--
       this.pump()
+      // Nothing running and nothing waiting: the queue has drained. Carries the row that finished it.
+      if (this.active === 0 && !this.rows.some((r) => r.status === 'queued')) this.emit('idle', { ...row })
     }
   }
 }

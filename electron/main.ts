@@ -6,7 +6,7 @@ import { parseDeepLink } from '../shared/urls'
 import { TuberDb } from './db/database'
 import { checkAllTools } from './engine/tools'
 import { removeLegacySingleFileEngine, updateEngine } from './engine/updater'
-import { registerIpc, send } from './ipc/handlers'
+import { registerIpc, send, schedulePowerAction } from './ipc/handlers'
 import { setPotReachable } from './engine/ytdlp'
 import { lookup } from 'node:dns/promises'
 import { QueueManager } from './queue/manager'
@@ -135,6 +135,11 @@ app.whenReady().then(async () => {
       n.on('click', () => row.outputPath && shell.showItemInFolder(row.outputPath))
       n.show()
     }
+  })
+  queue.on('idle', (row) => {
+    const action = getSettings().onQueueDone
+    if (action === 'open-folder') void shell.openPath(row.destination || getSettings().destination)
+    else if (action === 'sleep' || action === 'shutdown') schedulePowerAction(action)
   })
   registerIpc(queue, db)
   createWindow()

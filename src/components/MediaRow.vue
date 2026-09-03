@@ -158,6 +158,7 @@ function openPlaylist(): void {
     class="group relative flex flex-wrap items-start gap-x-3 gap-y-2 border-b border-tx-border px-4 py-2.5 transition-colors hover:bg-tx-row/60"
     :class="selected ? 'bg-tx-row ring-1 ring-inset ring-tx-accent/60' : ''"
     @click="onRowClick"
+    @dblclick="status === 'done' && row.outputPath ? queue.open(row.outputPath) : undefined"
   >
     <!-- Thumbnail with its quality badge -->
     <div

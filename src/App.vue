@@ -19,6 +19,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useLaterStore } from '@/stores/later'
 import { useHistoryStore } from '@/stores/history'
 import { useUiStore } from '@/stores/ui'
+import { ROW_DRAG_TYPE } from '@/lib/drag'
 
 const queue = useQueueStore()
 const settings = useSettingsStore()
@@ -27,6 +28,11 @@ const historyStore = useHistoryStore()
 const ui = useUiStore()
 
 const applyFormat = ref('')
+const power = ref<{ action: 'sleep' | 'shutdown'; seconds: number } | null>(null)
+function cancelPower(): void {
+  power.value = null
+  void window.tuberx.power.cancel()
+}
 const unbinds: Array<() => void> = []
 
 const drawerOpen = computed(
@@ -85,6 +91,7 @@ function onPaste(e: ClipboardEvent): void {
 }
 
 function onDragOver(e: DragEvent): void {
+  if (e.dataTransfer?.types.includes(ROW_DRAG_TYPE)) return // a row being reordered, not a link coming in
   e.preventDefault()
   ui.setDragging(true)
 }
@@ -94,9 +101,10 @@ function onDragLeave(e: DragEvent): void {
 }
 
 function onDrop(e: DragEvent): void {
+  const dt = e.dataTransfer
+  if (dt?.types.includes(ROW_DRAG_TYPE)) return
   e.preventDefault()
   ui.setDragging(false)
-  const dt = e.dataTransfer
   if (!dt) return
 
   const textFiles = [...dt.files].filter((f) => /\.txt$/i.test(f.name))
@@ -185,6 +193,7 @@ onMounted(() => {
   document.addEventListener('contextmenu', onContextMenu)
   unbinds.push(listen('ui:selectAll', () => queue.selectAll()))
   unbinds.push(listen('ui:about', () => ui.open('settings', 'about')))
+  unbinds.push(listen('power:countdown', (p) => (power.value = p.seconds > 0 ? p : null)))
   window.addEventListener('dragover', onDragOver)
   window.addEventListener('dragleave', onDragLeave)
   window.addEventListener('drop', onDrop)
@@ -257,6 +266,16 @@ onBeforeUnmount(() => {
       />
 
       <Toasts />
+
+      <!-- Sleep / shut down after the queue drained: 30 s to change your mind -->
+      <div
+        v-if="power"
+        class="absolute inset-x-4 bottom-4 z-30 flex items-center gap-3 rounded-lg border border-tx-accent/60 bg-tx-panel px-4 py-3 text-sm shadow-lg"
+        role="alert"
+      >
+        <span class="flex-1">{{ power.action === 'sleep' ? 'Sleeping' : 'Shutting down' }} in {{ power.seconds }} s — the queue is finished.</span>
+        <button type="button" class="tx-btn-accent" @click="cancelPower">Cancel</button>
+      </div>
     </main>
 
     <footer
