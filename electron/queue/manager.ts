@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
-import { basename, join } from 'node:path'
-import { appendFileSync, mkdirSync, statSync, renameSync, readdirSync, rmSync } from 'node:fs'
+import { basename, extname, join } from 'node:path'
+import { appendFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, rmSync } from 'node:fs'
 import { app } from 'electron'
 import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
@@ -215,6 +215,36 @@ export class QueueManager extends EventEmitter {
     }
   }
 
+  /**
+   * Name for a re-download ("Download again"). The rule: a file the user already has is never replaced
+   * by a different format. Downloading the same format again refreshes that one file in place. A new
+   * video quality on a row that already has a video file on disk is saved with the quality in its name
+   * (keep-both, the default) or overwrites it (replace). Audio formats never collide: their extensions differ.
+   * Files from older versions, before the per-row ledger existed, are found through history and the row's
+   * last output, so an upgraded install keeps its files too.
+   */
+  private redoNameTag(row: QueueRow, format: FormatOption, variants: Record<string, string>, collides: boolean, settings: Settings): string | undefined {
+    if (format.id in variants) return variants[format.id] || undefined
+    if (!collides || settings.onConflict !== 'keep-both') return undefined
+    const onDisk = this.existingVideoFiles(row)
+    const own = onDisk.find((f) => f.formatId === format.id)
+    if (own) return recognizedTag(own.path) // this format made that file: refresh it under its existing name
+    if (onDisk.length || Object.keys(variants).some(isVideoFormatId)) return qualityTag(format)
+    return undefined
+  }
+
+  /** Video files this link has produced that are still on disk, with the format that made each when known. */
+  private existingVideoFiles(row: QueueRow): { formatId?: string; path: string }[] {
+    const out: { formatId?: string; path: string }[] = []
+    const consider = (path: string | undefined, formatId?: string) => {
+      if (!path || out.some((f) => f.path === path) || !isVideoFile(path) || !existsSync(path)) return
+      out.push({ path, formatId })
+    }
+    for (const h of this.db.historyFor(urlKey(row.url))) consider(h.outputPath, h.formatId)
+    consider(row.outputPath) // the row's format may have been changed since, so its maker is unknown
+    return out
+  }
+
   private async runDownload(row: QueueRow) {
     const settings = this.getSettings()
     const media = row.media!
@@ -222,17 +252,9 @@ export class QueueManager extends EventEmitter {
     if (!format) return void this.update(row.id, { status: 'failed', error: 'no format available' })
 
     const force = this.redo.delete(row.id)
-    // Re-download in a *different* format: keep the earlier file by tagging the new name with its quality
-    // (unless the user prefers replacing). Same format again = refresh in place.
-    // Naming on re-download. A format this row already produced refreshes its own file. A new video
-    // format on a row that already has a video file gets the quality in its name (keep-both) or
-    // overwrites (replace). Audio kinds never collide: their extensions differ.
     const variants = { ...(row.downloadedVariants ?? {}) }
     const collides = format.kind === 'video' || format.kind === 'video-only'
-    const hasVideoFile = Object.keys(variants).some((id) => id.startsWith('v'))
-    let nameTag: string | undefined
-    if (force && format.id in variants) nameTag = variants[format.id] || undefined
-    else if (force && collides && hasVideoFile && settings.onConflict === 'keep-both') nameTag = qualityTag(format)
+    const nameTag = force ? this.redoNameTag(row, format, variants, collides, settings) : undefined
     if (settings.skipIfExists && !force && this.db.historyHas(urlKey(row.url))) {
       this.update(row.id, { status: 'skipped', error: undefined })
       return this.pump()
@@ -354,6 +376,14 @@ export function qualityTag(format: FormatOption): string {
     default:
       return format.kind.toUpperCase()
   }
+}
+
+const isVideoFormatId = (id: string) => id.startsWith('v')
+const isVideoFile = (path: string) => /^\.(mp4|mkv|webm|mov|m4v|avi|flv|ts|3gp)$/i.test(extname(path))
+/** The quality suffix a keep-both download gave a file, if its name carries one. */
+function recognizedTag(path: string): string | undefined {
+  const stem = basename(path, extname(path))
+  return / \[(\d+p(?: video only)?|4K(?: video only)?|best|video only|MP3|M4A|WAV|M4R)\]$/.exec(stem)?.[1]
 }
 
 /** Keep the requested format when the media offers it, else fall back sensibly. */

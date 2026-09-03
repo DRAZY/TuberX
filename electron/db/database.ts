@@ -149,6 +149,12 @@ export class TuberDb {
   historyHas(urlKey: string): boolean {
     return !!this.db.prepare('SELECT 1 FROM history WHERE url_key = ? LIMIT 1').get(urlKey)
   }
+  /** Every file this link has produced, newest first: the record of what the user already has on disk. */
+  historyFor(urlKey: string): { formatId: string; outputPath: string }[] {
+    return this.db
+      .prepare('SELECT format_id AS formatId, output_path AS outputPath FROM history WHERE url_key = ? ORDER BY completed_at DESC')
+      .all(urlKey) as { formatId: string; outputPath: string }[]
+  }
   removeHistory(ids: string[]) {
     this.each('DELETE FROM history WHERE id = ?', ids)
   }

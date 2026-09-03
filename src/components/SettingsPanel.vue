@@ -222,7 +222,7 @@ function commitProxy(): void {
           </select>
         </label>
         <p class="mt-1 text-[10px] leading-snug text-tx-muted">
-          Downloading the same format again always refreshes the file in place.
+          Changing the format and choosing Download again never touches the file you already have. The same format again refreshes that one file.
         </p>
         <Toggle
           class="mt-2"

@@ -314,7 +314,7 @@ function openPlaylist(): void {
           <button
             type="button"
             class="shrink-0 text-tx-muted hover:text-tx-text"
-            title="Download again (pick a different format first if you like)"
+            title="Download again (pick another format first to get a second copy; the file you have stays)"
             aria-label="Download again"
             @click="queue.start([row.id])"
           >
