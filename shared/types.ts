@@ -107,7 +107,8 @@ export interface DownloadProgress {
   speed?: number
   /** seconds */
   eta?: number
-  stage: 'download' | 'merge' | 'convert' | 'tag'
+  /** download, then the post-processing passes in the order yt-dlp runs them */
+  stage: 'download' | 'merge' | 'convert' | 'subs' | 'tag' | 'cover' | 'move'
   /** Which downloader yt-dlp is actually using, once the log reveals it */
   downloader?: 'native' | 'aria2c'
   /** Multi-file downloads (video + audio): which file is in flight */
@@ -278,6 +279,8 @@ export interface TuberXApi {
   shell: {
     reveal(path: string): Promise<void>
     openExternal(url: string): Promise<void>
+    /** Reveal the folder holding engine.log, the first thing to send with a problem report. */
+    openLogs(): Promise<void>
   }
   on<K extends keyof MainEvents>(event: K, handler: (payload: MainEvents[K]) => void): () => void
 }

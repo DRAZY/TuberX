@@ -232,6 +232,13 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     patchSettings({ cookiesFile: '' })
   })
 
+  // ---- logs ----
+  ipcMain.handle('shell:openLogs', async () => {
+    const dir = join(app.getPath('userData'), 'logs')
+    mkdirSync(dir, { recursive: true })
+    await shell.openPath(dir)
+  })
+
   // ---- tools ----
   ipcMain.handle('tools:status', () => checkAllTools())
   ipcMain.handle('tools:updateEngine', async () => {

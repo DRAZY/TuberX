@@ -71,11 +71,14 @@ export function parseProgressLine(line: string): DownloadProgress | null {
       eta: num(eta),
     }
   }
+  // Post-processing: each pass rewrites the whole file, so the UI names the pass and shows elapsed time.
   if (/^\[Merger\]/.test(l)) return { stage: 'merge', percent: 100 }
   if (/^\[(ExtractAudio|VideoRemuxer|VideoConvertor|FixupM4a|FixupM3u8)\]/.test(l))
     return { stage: 'convert', percent: 100 }
-  if (/^\[(Metadata|EmbedThumbnail|EmbedSubtitle|ThumbnailsConvertor)\]/.test(l))
-    return { stage: 'tag', percent: 100 }
+  if (/^\[EmbedSubtitle\]/.test(l)) return { stage: 'subs', percent: 100 }
+  if (/^\[(Metadata|ThumbnailsConvertor)\]/.test(l)) return { stage: 'tag', percent: 100 }
+  if (/^\[EmbedThumbnail\]/.test(l)) return { stage: 'cover', percent: 100 }
+  if (/^\[MoveFiles\]/.test(l)) return { stage: 'move', percent: 100 }
   return null
 }
 

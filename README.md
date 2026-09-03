@@ -58,7 +58,9 @@ Settings → Downloads → "Re-downloading in a different format" switches rule 
 
 **"Sign in to confirm you're not a bot" from YouTube.** Almost always an IPv6 connection; TuberX connects over IPv4 by default, which resolves it. If it persists, the bundled PO-token helper handles most remaining cases without a login (it needs `jnn-pa.googleapis.com` reachable; some DNS filters block that host, and TuberX tells you if yours does). As a last resort, Settings › Network can use your browser's cookies (Firefox works best on Windows) or an imported cookies.txt.
 
-**A download is slow or fails.** Every yt-dlp line for every download is written to `engine.log` in the app-data folder (`%APPDATA%\TuberX\logs` on Windows, `~/Library/Application Support/TuberX/logs` on macOS), rotated at 5 MB. It records the exact command, which downloader ran, speeds and the error text. Attach it to a bug report.
+**The end of a download takes a while.** After the transfer, yt-dlp merges video and audio, embeds subtitles, writes tags and chapters, and moves the file, and each of those passes rewrites the whole file. The row names the pass and counts the seconds. Large files on a slow disk, a OneDrive folder or under antivirus scanning are the slow cases. When the destination is on another drive, TuberX keeps its temporary files there too, so the final step is a rename rather than a copy.
+
+**A download is slow or fails.** Every yt-dlp line for every download is written to `engine.log` (Settings → Engine → Open log folder) in the app-data folder (`%APPDATA%\TuberX\logs` on Windows, `~/Library/Application Support/TuberX/logs` on macOS), rotated at 5 MB. It records the exact command, which downloader ran, speeds and the error text. Attach it to a bug report.
 
 **"This video is DRM-protected."** The site serves that video only through DRM, and no downloader can take it.
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import type { QueueRow } from '@shared/types'
 import { formatBytes, formatDuration, heightLabel } from '@shared/normalize'
 import { formatEta } from '@/lib/paths'
@@ -68,17 +68,48 @@ const meta = computed(() => {
 const progress = computed(() => props.row.progress)
 const percent = computed(() => Math.max(0, Math.min(100, progress.value?.percent ?? 0)))
 
+/** Post-processing passes, each a full rewrite of the file, named so a long one is not a mystery. */
+const STAGE_LABEL: Record<string, string> = {
+  merge: 'Merging video and audio',
+  convert: 'Converting',
+  subs: 'Embedding subtitles',
+  tag: 'Writing tags and chapters',
+  cover: 'Embedding cover art',
+  move: 'Moving to folder',
+}
+const postProcessing = computed(() => !!progress.value && progress.value.stage !== 'download')
+
+// Elapsed time in the current post-processing pass: the only movement there is to show.
+const stageSince = ref(0)
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | undefined
+watch(
+  () => progress.value?.stage,
+  (stage) => {
+    stageSince.value = Date.now()
+    now.value = stageSince.value
+    if (ticker) clearInterval(ticker)
+    ticker = undefined
+    if (stage && stage !== 'download') ticker = setInterval(() => (now.value = Date.now()), 1000)
+  },
+  { immediate: true },
+)
+onUnmounted(() => ticker && clearInterval(ticker))
+
 const progressLine = computed(() => {
   const p = progress.value
   if (!p) return ''
   if (p.stage !== 'download') {
-    return p.stage === 'merge' ? 'Merging…' : p.stage === 'tag' ? 'Tagging…' : 'Converting…'
+    const secs = Math.max(0, Math.round((now.value - stageSince.value) / 1000))
+    const label = STAGE_LABEL[p.stage] ?? 'Processing'
+    return secs >= 3 ? `${label} · ${secs} s` : label
   }
   const speed = p.speed ? `${formatBytes(p.speed)}/s` : ''
   const eta = formatEta(p.eta)
+  const size = p.totalBytes ? `${formatBytes(p.downloadedBytes ?? 0)} / ${formatBytes(p.totalBytes)}` : ''
   const via = p.downloader === 'aria2c' ? 'aria2' : ''
-  const part = p.part && p.part.count > 1 ? `part ${p.part.index}/${p.part.count}` : ''
-  return [speed, eta && `${eta} left`, part, via].filter(Boolean).join(' · ')
+  const part = p.part && p.part.count > 1 ? `file ${p.part.index}/${p.part.count}` : ''
+  return [speed, eta && `${eta} left`, size, part, via].filter(Boolean).join(' · ')
 })
 
 const playlistCount = computed(() => media.value?.entries?.length ?? 0)
@@ -251,12 +282,13 @@ function openPlaylist(): void {
             <div class="h-1.5 w-full overflow-hidden rounded-full bg-tx-border">
               <div
                 class="h-full rounded-full bg-tx-accent transition-[width] duration-200"
+                :class="{ 'animate-pulse': postProcessing }"
                 :style="{ width: `${percent}%` }"
               />
             </div>
-            <div class="mt-1 flex items-center justify-between gap-2 text-[10px] text-tx-muted">
-              <span>{{ percent.toFixed(0) }}%</span>
-              <span class="truncate">{{ progressLine }}</span>
+            <div class="mt-1 flex items-start justify-between gap-2 text-[10px] leading-tight text-tx-muted">
+              <span v-if="!postProcessing" class="shrink-0">{{ percent.toFixed(0) }}%</span>
+              <span class="min-w-0 whitespace-normal break-words text-right" :title="progressLine">{{ progressLine }}</span>
             </div>
           </div>
           <button

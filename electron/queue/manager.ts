@@ -6,7 +6,7 @@ import { app } from 'electron'
 import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
 import { TuberDb } from '../db/database'
-import { download, fetchMetadata } from '../engine/ytdlp'
+import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -182,7 +182,7 @@ export class QueueManager extends EventEmitter {
     const active = this.aborters.get(id)
     if (active) active.abort() // runDownload's catch finishes the reset
     else if (row.status === 'queued' || row.status === 'paused' || row.status === 'cancelled') {
-      if (row.media) cleanupPartials(row.media.title)
+      if (row.media) cleanupPartials(row.media.title, row.destination || this.getSettings().destination)
       this.update(id, { status: 'ready', progress: undefined, error: undefined })
     }
   }
@@ -318,6 +318,7 @@ export class QueueManager extends EventEmitter {
         // the plain name now holds this format; any other format that used the plain name was overwritten
         if (!plan.nameTag) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && (collides === (id.startsWith('v')))) delete variants[id]
         variants[format.id] = plan.nameTag ?? ''
+        dropLocalTemp(row.destination || settings.destination)
         this.update(row.id, { status: 'done', outputPath: result.outputPath, progress: undefined, downloadedVariants: variants })
         this.db.addHistory(
           {
@@ -340,7 +341,7 @@ export class QueueManager extends EventEmitter {
         if (this.pausing.delete(row.id)) {
           this.update(row.id, { status: 'paused', error: undefined }) // progress kept for the bar
         } else {
-          cleanupPartials(media.title)
+          cleanupPartials(media.title, row.destination || settings.destination)
           this.update(row.id, { status: 'ready', progress: undefined, error: undefined })
         }
       } else this.update(row.id, { status: 'failed', error: msg, progress: undefined })
@@ -372,11 +373,15 @@ function engineLog(rowId: string, line: string) {
 }
 
 /** Remove the temp-dir leftovers of a stopped download (.part/.ytdl/.aria2 and per-format intermediates). */
-export function cleanupPartials(title: string): void {
-  const tmp = join(app.getPath('userData'), 'tmp')
+export function cleanupPartials(title: string, destination?: string): void {
   const key = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24)
   const stem = key(title)
   if (!stem) return
+  const dirs = [join(app.getPath('userData'), 'tmp')]
+  if (destination) dirs.push(join(destination, '.tuberx-tmp'))
+  for (const tmp of dirs) sweep(tmp)
+  if (destination) dropLocalTemp(destination)
+  function sweep(tmp: string) {
   try {
     for (const f of readdirSync(tmp)) {
       if (!key(f).startsWith(stem)) continue
@@ -384,6 +389,7 @@ export function cleanupPartials(title: string): void {
     }
   } catch {
     /* nothing to clean */
+  }
   }
 }
 

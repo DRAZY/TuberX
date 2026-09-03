@@ -45,6 +45,7 @@ const api: TuberXApi = {
   shell: {
     reveal: (path) => invoke('shell:reveal', path),
     openExternal: (url) => invoke('shell:openExternal', url),
+    openLogs: () => invoke('shell:openLogs'),
   },
   on<K extends keyof MainEvents>(event: K, handler: (payload: MainEvents[K]) => void) {
     const listener = (_e: Electron.IpcRendererEvent, payload: MainEvents[K]) => handler(payload)

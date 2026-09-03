@@ -32,6 +32,9 @@ watch(() => ui.anchor, () => void scrollToAnchor())
 function openLink(url: string): void {
   void guard(() => window.tuberx.shell.openExternal(url))
 }
+function openLogs(): void {
+  void guard(() => window.tuberx.shell.openLogs())
+}
 
 const MP3_BITRATES: Settings['mp3Bitrate'][] = [128, 192, 256, 320]
 const CONCURRENCY: Settings['concurrentDownloads'][] = [1, 2, 3, 4, 5, 6, 8]
@@ -397,6 +400,7 @@ function commitProxy(): void {
             <Icon v-else name="refresh" :size="12" />
             Update yt-dlp now
           </button>
+          <button type="button" class="tx-btn-ghost" title="engine.log records every line of every download" @click="openLogs()">Open log folder</button>
           <span v-if="store.engineResult" class="truncate text-[10px] text-tx-muted">
             {{ store.engineResult }}
           </span>
@@ -435,6 +439,7 @@ function commitProxy(): void {
           <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.homepage)">Project page</button>
           <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.releases)">Releases</button>
           <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.issues)">Report a problem</button>
+          <button type="button" class="tx-btn-ghost" @click="openLogs()">Open log folder</button>
           <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.licenses)">Third-party licenses</button>
         </div>
         <p class="mt-3 text-[10px] leading-snug text-tx-muted">

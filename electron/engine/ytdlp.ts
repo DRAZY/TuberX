@@ -5,12 +5,13 @@ import { normalizeMedia, type YtDlpJson } from '../../shared/normalize'
 import { FINAL_PATH_PREFIX, PROGRESS_TEMPLATE, parseFinalPath, parseProgressLine } from '../../shared/progress'
 import { playlistUrlFromVideoUrl, vimeoPlayerUrl } from '../../shared/urls'
 import { ffmpegLocation, potDir, resolveTool, toolDirs, userBinDir } from './paths'
-import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, statSync, writeFileSync as writeFile } from 'node:fs'
+import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, rmdirSync, statSync, writeFileSync as writeFile } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
 import { run } from './run'
 import { app } from 'electron'
 import { cpus } from 'node:os'
+import { spawn } from 'node:child_process'
 
 /** Set at startup from a DNS probe of jnn-pa.googleapis.com; false disables the PO-token helper args. */
 let potReachable = true
@@ -186,6 +187,36 @@ function buildFormatArgs(format: FormatOption, settings: Settings): string[] {
   return args
 }
 
+/**
+ * Where partial and intermediate files go. Normally the app-data tmp folder, out of the user's sight.
+ * When the destination sits on another volume (external drive, NAS, second disk) the final step would
+ * be a full copy of the finished file instead of a rename, so the temp folder moves next to the
+ * destination for that job. It is removed again once empty.
+ */
+export function tempDirFor(destination: string): string {
+  const appTmp = join(app.getPath('userData'), 'tmp')
+  try {
+    mkdirp(appTmp, { recursive: true })
+    if (statSync(destination).dev === statSync(appTmp).dev) return appTmp
+  } catch {
+    return appTmp
+  }
+  const local = join(destination, '.tuberx-tmp')
+  mkdirp(local, { recursive: true })
+  if (process.platform === 'win32') void spawn('attrib', ['+h', local], { windowsHide: true }).on('error', () => {})
+  return local
+}
+
+/** Drop the per-destination temp folder when a job leaves nothing in it. */
+export function dropLocalTemp(destination: string): void {
+  const local = join(destination, '.tuberx-tmp')
+  try {
+    if (fileExists(local) && readdirSync(local).length === 0) rmdirSync(local)
+  } catch {
+    /* busy or already gone */
+  }
+}
+
 export async function download(job: DownloadJob): Promise<DownloadResult> {
   const bin = must('yt-dlp')
   const { settings, format } = job
@@ -208,7 +239,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     '-P',
     job.destination,
     '-P',
-    `temp:${join(app.getPath('userData'), 'tmp')}`,
+    `temp:${tempDirFor(job.destination)}`,
     '-o',
     job.nameTag ? `%(title).120B [${job.nameTag}].%(ext)s` : '%(title).120B.%(ext)s',
     '--embed-metadata',
