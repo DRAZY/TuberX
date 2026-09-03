@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { MediaItem, ToastKind } from '@shared/types'
 
-export type PanelName = 'none' | 'later' | 'history' | 'settings' | 'multilink' | 'playlist' | 'trim' | 'split' | 'rename'
+export type PanelName = 'none' | 'later' | 'history' | 'subs' | 'settings' | 'multilink' | 'playlist' | 'trim' | 'split' | 'rename'
 
 export interface Toast {
   id: number

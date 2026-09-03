@@ -4,6 +4,7 @@ export type IconName =
   | 'search'
   | 'later'
   | 'history'
+  | 'rss'
   | 'settings'
   | 'close'
   | 'scissors'
@@ -32,6 +33,7 @@ export const ICONS: Record<IconName, IconDef> = {
   plus: { d: ['M12 5v14', 'M5 12h14'] },
   search: { d: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14', 'M16.5 16.5 21 21'] },
   later: { d: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18', 'M12 7.5v7', 'm9 11.5 3 3 3-3'] },
+  rss: { d: ['M4 11a9 9 0 0 1 9 9', 'M4 4a16 16 0 0 1 16 16', 'M5 19a1 1 0 1 0 0-2 1 1 0 0 0 0 2z'] },
   history: { d: ['M3.5 12a8.5 8.5 0 1 0 2.9-6.4', 'M3 4.5V9h4.5', 'M12 8v4.5l3 1.8'] },
   settings: {
     d: [

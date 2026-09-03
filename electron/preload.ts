@@ -24,6 +24,14 @@ const api: TuberXApi = {
     remove: (ids) => invoke('later:remove', ids),
     sendToQueue: (ids) => invoke('later:sendToQueue', ids),
   },
+  subs: {
+    list: () => invoke('subs:list'),
+    add: (url) => invoke('subs:add', url),
+    remove: (ids) => invoke('subs:remove', ids),
+    check: (ids) => invoke('subs:check', ids),
+    downloadNew: (id) => invoke('subs:downloadNew', id),
+    markSeen: (id) => invoke('subs:markSeen', id),
+  },
   history: {
     list: () => invoke('history:list'),
     remove: (ids) => invoke('history:remove', ids),

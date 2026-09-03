@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { app } from 'electron'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { HistoryEntry, LaterEntry, QueueRow } from '../../shared/types'
+import type { HistoryEntry, LaterEntry, QueueRow, Subscription } from '../../shared/types'
 
 /**
  * One SQLite file under userData, through Node's built-in `node:sqlite` (Electron 38 / Node 22.22)
@@ -52,6 +52,18 @@ export class TuberDb {
         thumbnail TEXT,
         duration REAL,
         added_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        url TEXT NOT NULL,
+        url_key TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        thumbnail TEXT,
+        added_at INTEGER NOT NULL,
+        last_checked INTEGER,
+        total INTEGER NOT NULL DEFAULT 0,
+        known TEXT NOT NULL DEFAULT '[]',
+        fresh TEXT NOT NULL DEFAULT '[]'
       );
       CREATE TABLE IF NOT EXISTS destinations (
         path TEXT PRIMARY KEY,
@@ -163,6 +175,36 @@ export class TuberDb {
   }
   clearHistory() {
     this.db.prepare('DELETE FROM history').run()
+  }
+
+  // ---- subscriptions ----
+  listSubs(): Subscription[] {
+    const rows = this.db.prepare('SELECT * FROM subscriptions ORDER BY added_at DESC').all() as any[]
+    return rows.map((r) => ({
+      id: r.id, url: r.url, title: r.title, thumbnail: r.thumbnail ?? undefined, addedAt: r.added_at,
+      lastChecked: r.last_checked ?? undefined, total: r.total, newUrls: JSON.parse(r.fresh),
+    }))
+  }
+  subKnown(id: string): string[] {
+    const r = this.db.prepare('SELECT known FROM subscriptions WHERE id = ?').get(id) as { known: string } | undefined
+    return r ? JSON.parse(r.known) : []
+  }
+  addSub(s: Subscription, urlKey: string, known: string[]): boolean {
+    const res = this.db
+      .prepare('INSERT OR IGNORE INTO subscriptions (id,url,url_key,title,thumbnail,added_at,last_checked,total,known,fresh) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(s.id, s.url, urlKey, s.title, s.thumbnail ?? null, s.addedAt, s.lastChecked ?? null, s.total, JSON.stringify(known), JSON.stringify(s.newUrls))
+    return res.changes > 0
+  }
+  updateSub(id: string, patch: { title?: string; thumbnail?: string; lastChecked?: number; total?: number; known?: string[]; fresh?: string[] }) {
+    this.db
+      .prepare(
+        `UPDATE subscriptions SET title = COALESCE(?, title), thumbnail = COALESCE(?, thumbnail), last_checked = COALESCE(?, last_checked),
+         total = COALESCE(?, total), known = COALESCE(?, known), fresh = COALESCE(?, fresh) WHERE id = ?`,
+      )
+      .run(patch.title ?? null, patch.thumbnail ?? null, patch.lastChecked ?? null, patch.total ?? null, patch.known ? JSON.stringify(patch.known) : null, patch.fresh ? JSON.stringify(patch.fresh) : null, id)
+  }
+  removeSubs(ids: string[]) {
+    this.each('DELETE FROM subscriptions WHERE id = ?', ids)
   }
 
   // ---- later ----

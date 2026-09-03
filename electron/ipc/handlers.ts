@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync 
 import { spawn } from 'node:child_process'
 import { basename, join } from 'node:path'
 import { app } from 'electron'
-import type { AppInfo, LaterEntry, MainEvents, Settings } from '../../shared/types'
+import type { AppInfo, LaterEntry, MainEvents, Settings, Subscription } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
 import type { TuberDb } from '../db/database'
 import { checkAllTools } from '../engine/tools'
@@ -195,6 +195,71 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     issues: 'https://github.com/DRAZY/TuberX/issues',
     licenses: 'https://github.com/DRAZY/TuberX/blob/main/THIRD_PARTY_LICENSES.md',
   }))
+
+  // ---- subscriptions ----
+  const subsChanged = () => send('subs:changed', db.listSubs())
+  /** Fetch the playlist/channel flat and return its entries (url + title + thumbnail). */
+  const fetchEntries = async (url: string) => {
+    const media = await fetchMetadata(url, getSettings(), { noPlaylist: false })
+    const entries = (media.entries ?? []).map((e) => e.url).filter(Boolean)
+    return { media, entries }
+  }
+  ipcMain.handle('subs:list', () => db.listSubs())
+  ipcMain.handle('subs:add', async (_e, url: string) => {
+    const { media, entries } = await fetchEntries(url)
+    if (!media.isPlaylist) throw new Error('That link is a single video, not a playlist or channel.')
+    const sub: Subscription = {
+      id: randomUUID(), url, title: media.playlistTitle || media.title || url, thumbnail: media.thumbnail,
+      addedAt: Date.now(), lastChecked: Date.now(), total: entries.length, newUrls: [],
+    }
+    const added = db.addSub(sub, urlKey(url), entries) // everything present now counts as seen
+    subsChanged()
+    return { added, title: sub.title }
+  })
+  ipcMain.handle('subs:remove', (_e, ids: string[]) => {
+    db.removeSubs(ids)
+    subsChanged()
+  })
+  const checkSubs = async (ids?: string[]): Promise<number> => {
+    const subs = db.listSubs().filter((s) => !ids || ids.includes(s.id))
+    let found = 0
+    for (const s of subs) {
+      try {
+        const { media, entries } = await fetchEntries(s.url)
+        const known = new Set(db.subKnown(s.id))
+        const fresh = [...new Set([...s.newUrls, ...entries.filter((u) => !known.has(u))])]
+        found += fresh.length - s.newUrls.length
+        db.updateSub(s.id, { title: media.playlistTitle || media.title || undefined, thumbnail: media.thumbnail, lastChecked: Date.now(), total: entries.length, fresh })
+      } catch (e) {
+        engineLog('subs', `${s.url}: ${(e as Error).message}`)
+      }
+    }
+    subsChanged()
+    return found
+  }
+  ipcMain.handle('subs:check', (_e, ids?: string[]) => checkSubs(ids))
+  ipcMain.handle('subs:downloadNew', (_e, id: string) => {
+    const s = db.listSubs().find((x) => x.id === id)
+    if (!s || !s.newUrls.length) return 0
+    const result = queue.add(s.newUrls)
+    db.updateSub(id, { known: [...new Set([...db.subKnown(id), ...s.newUrls])], fresh: [] })
+    subsChanged()
+    return result.added
+  })
+  ipcMain.handle('subs:markSeen', (_e, id: string) => {
+    const s = db.listSubs().find((x) => x.id === id)
+    if (!s) return
+    db.updateSub(id, { known: [...new Set([...db.subKnown(id), ...s.newUrls])], fresh: [] })
+    subsChanged()
+  })
+  // On launch (a moment after the window is up) and every six hours while running: quiet unless something is new.
+  const launchCheck = async () => {
+    if (!db.listSubs().length) return
+    const n = await checkSubs()
+    if (n) send('toast', { kind: 'info', message: `${n} new video${n === 1 ? '' : 's'} in your subscriptions` })
+  }
+  setTimeout(() => void launchCheck(), 20_000)
+  setInterval(() => void launchCheck(), 6 * 60 * 60 * 1000)
 
   // ---- later ----
   ipcMain.handle('later:list', () => db.listLater())

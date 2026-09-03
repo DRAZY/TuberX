@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import IconButton from '@/components/IconButton.vue'
+import { useSubsStore } from '@/stores/subs'
 import Icon from '@/components/Icon.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 
+const subs = useSubsStore()
+void subs.ensureLoaded()
 const ui = useUiStore()
 const settings = useSettingsStore()
 
@@ -42,6 +45,10 @@ function disableProxy(): void {
 
       <IconButton icon="later" label="Download Later" :active="ui.panel === 'later'" @click="ui.toggle('later')" />
       <IconButton icon="history" label="History" :active="ui.panel === 'history'" @click="ui.toggle('history')" />
+      <span class="relative">
+        <IconButton icon="rss" label="Subscriptions" :active="ui.panel === 'subs'" @click="ui.toggle('subs')" />
+        <span v-if="subs.newCount" class="pointer-events-none absolute -right-0.5 -top-0.5 min-w-[14px] rounded-full bg-tx-accent px-1 text-center text-[9px] font-semibold leading-[14px] text-white">{{ subs.newCount }}</span>
+      </span>
       <IconButton
         icon="settings"
         label="Settings"

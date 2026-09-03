@@ -5,6 +5,7 @@ import TitleBar from '@/components/TitleBar.vue'
 import DropZone from '@/components/DropZone.vue'
 import QueueList from '@/components/QueueList.vue'
 import LaterPanel from '@/components/LaterPanel.vue'
+import SubscriptionsPanel from '@/components/SubscriptionsPanel.vue'
 import HistoryPanel from '@/components/HistoryPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import MultiLinkDialog from '@/components/MultiLinkDialog.vue'
@@ -39,7 +40,7 @@ function cancelPower(): void {
 const unbinds: Array<() => void> = []
 
 const drawerOpen = computed(
-  () => ui.panel === 'later' || ui.panel === 'history' || ui.panel === 'settings',
+  () => ui.panel === 'later' || ui.panel === 'history' || ui.panel === 'subs' || ui.panel === 'settings',
 )
 
 // --- input helpers ---------------------------------------------------------
@@ -260,6 +261,7 @@ onBeforeUnmount(() => {
         >
           <LaterPanel v-if="ui.panel === 'later'" />
           <HistoryPanel v-else-if="ui.panel === 'history'" />
+          <SubscriptionsPanel v-else-if="ui.panel === 'subs'" />
           <SettingsPanel v-else-if="ui.panel === 'settings'" />
         </aside>
       </Transition>

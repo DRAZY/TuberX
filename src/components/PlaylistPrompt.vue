@@ -6,6 +6,7 @@ import Icon from '@/components/Icon.vue'
 import { useQueueStore } from '@/stores/queue'
 import { useLaterStore } from '@/stores/later'
 import { useUiStore } from '@/stores/ui'
+import { useSubsStore } from '@/stores/subs'
 
 const props = defineProps<{ rowId: string; media: MediaItem }>()
 
@@ -57,6 +58,11 @@ async function entirePlaylist(): Promise<void> {
   const url = props.media.playlistUrl
   ui.closePlaylist()
   if (url) await queue.addUrls([url])
+}
+
+const subs = useSubsStore()
+async function subscribe(): Promise<void> {
+  await subs.add(props.media.webpageUrl || props.media.url)
 }
 </script>
 
@@ -117,7 +123,10 @@ async function entirePlaylist(): Promise<void> {
       </ul>
 
       <div class="flex shrink-0 items-center justify-between gap-2 border-t border-tx-border p-3">
-        <button type="button" class="tx-btn-ghost" @click="addAllToLater">Add all to Later</button>
+        <span class="flex items-center gap-2">
+          <button type="button" class="tx-btn-ghost" @click="addAllToLater">Add all to Later</button>
+          <button type="button" class="tx-btn-ghost" title="Follow this playlist or channel: new videos are spotted on every launch" @click="subscribe">Subscribe</button>
+        </span>
         <div class="flex items-center gap-2">
           <button type="button" class="tx-btn-ghost" @click="ui.closePlaylist()">Cancel</button>
           <button

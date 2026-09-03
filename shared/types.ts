@@ -115,6 +115,19 @@ export interface DownloadProgress {
   part?: { index: number; count: number }
 }
 
+/** A playlist or channel the user follows. `newUrls` are entries seen on the last check that were not known before. */
+export interface Subscription {
+  id: string
+  url: string
+  title: string
+  thumbnail?: string
+  addedAt: number
+  lastChecked?: number
+  /** entries at the last check */
+  total: number
+  newUrls: string[]
+}
+
 export interface HistoryEntry {
   id: string
   url: string
@@ -225,6 +238,7 @@ export type ToastKind = 'info' | 'success' | 'warn' | 'error'
 export interface MainEvents {
   'queue:changed': QueueRow[]
   'later:changed': LaterEntry[]
+  'subs:changed': Subscription[]
   'history:changed': HistoryEntry[]
   'row:progress': { id: string; progress: DownloadProgress }
   'tools:status': ToolStatus[]
@@ -285,6 +299,17 @@ export interface TuberXApi {
     add(urls: string[]): Promise<number>
     remove(ids: string[]): Promise<void>
     sendToQueue(ids: string[]): Promise<void>
+  }
+  subs: {
+    list(): Promise<Subscription[]>
+    /** Resolve the playlist/channel once and follow it. */
+    add(url: string): Promise<{ added: boolean; title: string }>
+    remove(ids: string[]): Promise<void>
+    /** Re-fetch the given subscriptions (all when omitted); resolves to the number of new videos found. */
+    check(ids?: string[]): Promise<number>
+    /** Queue the new videos and mark them known; resolves to how many were added. */
+    downloadNew(id: string): Promise<number>
+    markSeen(id: string): Promise<void>
   }
   history: {
     list(): Promise<HistoryEntry[]>
