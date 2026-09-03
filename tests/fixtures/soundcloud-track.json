@@ -1,0 +1,15 @@
+{
+  "_type": "video",
+  "id": "123456",
+  "title": "Some Track",
+  "webpage_url": "https://soundcloud.com/artist/track",
+  "uploader": "artist",
+  "duration": 245.3,
+  "extractor": "soundcloud",
+  "extractor_key": "Soundcloud",
+  "thumbnail": "https://i1.sndcdn.com/artworks-x-t500x500.jpg",
+  "formats": [
+    { "format_id": "http_mp3_128", "ext": "mp3", "vcodec": "none", "acodec": "mp3", "abr": 128 },
+    { "format_id": "hls_opus_64", "ext": "opus", "vcodec": "none", "acodec": "opus", "abr": 64 }
+  ]
+}

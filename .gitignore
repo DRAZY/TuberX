@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-electron/
+release/
+resources/bin/
+*.log
+.DS_Store
+.claude/*.png
+docs/reference/*.png
+resources/pot/
+resources/.dc/
+resources/.xc/
+.dc/
+.xc/
+.dc2/
+docs/private/

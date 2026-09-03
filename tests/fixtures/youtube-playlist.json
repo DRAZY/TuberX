@@ -1,0 +1,13 @@
+{
+  "_type": "playlist",
+  "id": "PL123",
+  "title": "Test Playlist",
+  "webpage_url": "https://www.youtube.com/playlist?list=PL123",
+  "extractor": "youtube:tab",
+  "extractor_key": "YoutubeTab",
+  "entries": [
+    { "_type": "url", "ie_key": "Youtube", "id": "aaaaaaaaaaa", "url": "aaaaaaaaaaa", "title": "First", "duration": 100 },
+    { "_type": "url", "ie_key": "Youtube", "id": "bbbbbbbbbbb", "url": "https://www.youtube.com/watch?v=bbbbbbbbbbb", "title": "Second", "duration": 200 },
+    { "_type": "url", "ie_key": "Youtube", "id": "ccccccccccc", "url": "ccccccccccc", "title": "Third" }
+  ]
+}

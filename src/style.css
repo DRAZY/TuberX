@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-tx-bg text-tx-text;
+    margin: 0;
+    overflow: hidden;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Chrome is a window, not a document: nothing outside inputs is selectable. */
+  body,
+  button,
+  select,
+  label {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  button {
+    cursor: default;
+  }
+}
+
+@layer components {
+  /* Frameless window: the title bar drags, its controls do not. */
+  .tx-drag {
+    -webkit-app-region: drag;
+  }
+
+  .tx-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /*
+   * Symmetric safe zones so the centered wordmark clears the OS window controls
+   * on either platform: traffic lights (left, macOS) and caption buttons
+   * (right, Windows). Padding both sides keeps the true centre the visual centre.
+   */
+  .tx-titlebar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .is-mac .tx-titlebar {
+    padding-left: 80px;
+    padding-right: 80px;
+  }
+
+  .is-windows .tx-titlebar {
+    padding-left: 138px;
+    padding-right: 138px;
+  }
+
+  .tx-btn {
+    @apply rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .tx-btn-accent {
+    @apply tx-btn bg-tx-accent text-white hover:bg-tx-accent-hover;
+  }
+
+  .tx-btn-ghost {
+    @apply tx-btn border border-tx-border bg-tx-row text-tx-text hover:border-tx-muted;
+  }
+
+  .tx-field {
+    @apply w-full rounded border border-tx-border bg-tx-bg px-2 py-1.5 text-xs text-tx-text outline-none focus:border-tx-accent;
+  }
+
+  .tx-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Thin, unobtrusive scrollbars everywhere. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #4a4a4d transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #4a4a4d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #5c5c60;
+}

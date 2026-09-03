@@ -1,0 +1,44 @@
+import Store from 'electron-store'
+import { app } from 'electron'
+import { join } from 'node:path'
+import { DEFAULT_SETTINGS, type Settings } from '../shared/types'
+
+const store = new Store<{ settings: Settings }>({ name: 'settings' })
+
+export function defaultDestination(): string {
+  return join(app.getPath('videos'), 'TuberX')
+}
+
+export function getSettings(): Settings {
+  const saved = store.get('settings') ?? ({} as Partial<Settings>)
+  const merged: Settings = { ...DEFAULT_SETTINGS, ...saved }
+  if (!merged.destination) merged.destination = defaultDestination()
+  return migrate(merged, saved.settingsVersion ?? 1)
+}
+
+/**
+ * One-shot default migrations. v0.1.0 shipped with aria2 off and two concurrent
+ * downloads; measurements (ISA Decisions 2026-09-02) made aria2 on / three the better default.
+ */
+function migrate(s: Settings, from: number): Settings {
+  if (from >= DEFAULT_SETTINGS.settingsVersion) return s
+  const next = { ...s }
+  if (from < 2) {
+    next.useAria2 = true
+    if (next.concurrentDownloads === 2) next.concurrentDownloads = 3
+  }
+  if (from < 3) {
+    next.potHelper = true
+    next.cookiesFile = next.cookiesFile ?? ''
+  }
+  if (from < 4) next.forceIpv4 = true
+  next.settingsVersion = DEFAULT_SETTINGS.settingsVersion
+  store.set('settings', next)
+  return next
+}
+
+export function patchSettings(patch: Partial<Settings>): Settings {
+  const next = { ...getSettings(), ...patch }
+  store.set('settings', next)
+  return next
+}

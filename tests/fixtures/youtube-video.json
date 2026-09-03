@@ -1,0 +1,32 @@
+{
+  "_type": "video",
+  "id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+  "webpage_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "uploader": "Rick Astley",
+  "channel": "Rick Astley",
+  "duration": 213,
+  "extractor": "youtube",
+  "extractor_key": "Youtube",
+  "availability": "public",
+  "thumbnails": [
+    { "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg", "width": 120, "height": 90 },
+    { "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", "width": 480, "height": 360 },
+    { "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", "width": 1920, "height": 1080 }
+  ],
+  "formats": [
+    { "format_id": "160", "ext": "mp4", "vcodec": "avc1.4d400c", "acodec": "none", "height": 144, "fps": 25, "filesize": 3000000 },
+    { "format_id": "134", "ext": "mp4", "vcodec": "avc1.4d401e", "acodec": "none", "height": 360, "fps": 25, "filesize": 9000000 },
+    { "format_id": "136", "ext": "mp4", "vcodec": "avc1.4d401f", "acodec": "none", "height": 720, "fps": 25, "filesize": 30000000 },
+    { "format_id": "137", "ext": "mp4", "vcodec": "avc1.640028", "acodec": "none", "height": 1080, "fps": 25, "filesize": 60000000 },
+    { "format_id": "313", "ext": "webm", "vcodec": "vp09.00.50.08", "acodec": "none", "height": 2160, "fps": 25, "filesize": 300000000 },
+    { "format_id": "140", "ext": "m4a", "vcodec": "none", "acodec": "mp4a.40.2", "abr": 129.5, "filesize": 3400000 },
+    { "format_id": "251", "ext": "webm", "vcodec": "none", "acodec": "opus", "abr": 140.0, "filesize": 3600000 }
+  ],
+  "subtitles": { "en": [{ "ext": "vtt", "name": "English" }] },
+  "automatic_captions": { "de": [{ "ext": "vtt", "name": "German" }], "en": [{ "ext": "vtt", "name": "English" }] },
+  "chapters": [
+    { "title": "Intro", "start_time": 0, "end_time": 30 },
+    { "title": "Chorus", "start_time": 30, "end_time": 213 }
+  ]
+}

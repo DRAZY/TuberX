@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "TuberX",
+  "description": "Send the current page or any video link to TuberX with one click or Ctrl+Shift+P.",
+  "version": "0.1.0",
+  "icons": { "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "background": { "service_worker": "background.js", "scripts": ["background.js"] },
+  "action": { "default_title": "Send to TuberX", "default_icon": { "48": "icons/icon-48.png" } },
+  "permissions": ["contextMenus", "tabs", "activeTab"],
+  "commands": {
+    "send-to-tuberx": {
+      "description": "Send current page to TuberX",
+      "suggested_key": { "default": "Ctrl+Shift+P" }
+    },
+    "send-to-tuberx-later": {
+      "description": "Add current page to TuberX's Download Later list",
+      "suggested_key": { "default": "Ctrl+Shift+L" }
+    }
+  },
+  "browser_specific_settings": { "gecko": { "id": "tuberx@drazy.dev", "strict_min_version": "121.0" } }
+}
