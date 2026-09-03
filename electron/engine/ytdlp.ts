@@ -144,6 +144,8 @@ export interface DownloadJob {
   signal?: AbortSignal
   /** Explicit re-download: replace an existing output instead of treating it as already done. */
   force?: boolean
+  /** Keep-both mode: add the quality to the file name so the earlier download survives. */
+  nameTag?: string
   onProgress: (p: DownloadProgress) => void
   onLog?: (line: string) => void
 }
@@ -208,7 +210,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     '-P',
     `temp:${join(app.getPath('userData'), 'tmp')}`,
     '-o',
-    '%(title).120B.%(ext)s',
+    job.nameTag ? `%(title).120B [${job.nameTag}].%(ext)s` : '%(title).120B.%(ext)s',
     '--embed-metadata',
     '--embed-chapters',
     '--no-playlist',

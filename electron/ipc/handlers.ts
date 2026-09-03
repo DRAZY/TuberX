@@ -83,8 +83,19 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   }
   ipcMain.handle('queue:pasteClipboard', (_e, download: boolean) => pasteClipboard(download))
 
-  ipcMain.handle('menu:show', (e, kind: 'app' | 'row', rowId?: string) => {
+  ipcMain.handle('menu:show', (e, kind: 'app' | 'row' | 'edit', rowId?: string) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    if (kind === 'edit') {
+      // Standard edit menu for text fields; the Add-links box is the main customer.
+      Menu.buildFromTemplate([
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+      ]).popup({ window: win })
+      return
+    }
     const hasLink = extractUrls(clipboard.readText()).length > 0
     const row = rowId ? queue.list().find((r) => r.id === rowId) : undefined
     const items: Electron.MenuItemConstructorOptions[] = []

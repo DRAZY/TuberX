@@ -95,6 +95,8 @@ export interface QueueRow {
   progress?: DownloadProgress
   outputPath?: string
   error?: string
+  /** Every format this row has produced → the name tag it was saved under ('' = plain name). A repeat refreshes its own file. */
+  downloadedVariants?: Record<string, string>
 }
 
 export interface DownloadProgress {
@@ -152,6 +154,8 @@ export interface Settings {
   writeSubtitleFiles: boolean
   subtitleLangs: string[]
   skipIfExists: boolean
+  /** Re-downloading in a different format: keep both files (quality added to the name) or replace the file */
+  onConflict: 'keep-both' | 'replace'
   proxy: string
   proxyEnabled: boolean
   cookiesFromBrowser: '' | 'chrome' | 'edge' | 'firefox' | 'brave'
@@ -182,6 +186,7 @@ export const DEFAULT_SETTINGS: Settings = {
   writeSubtitleFiles: false,
   subtitleLangs: ['en'],
   skipIfExists: true,
+  onConflict: 'keep-both',
   proxy: '',
   proxyEnabled: false,
   cookiesFromBrowser: '',
@@ -192,7 +197,7 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrentDownloads: 3,
   notifyOnComplete: true,
   autoUpdateEngine: true,
-  settingsVersion: 5,
+  settingsVersion: 6,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -228,7 +233,7 @@ export interface TuberXApi {
   /** Read the OS clipboard in the main process and add every URL found. */
   pasteClipboard(download?: boolean): Promise<{ found: number; added: number }>
   /** Show the native right-click menu for the empty area or a row. */
-  contextMenu(kind: 'app' | 'row', rowId?: string): Promise<void>
+  contextMenu(kind: 'app' | 'row' | 'edit', rowId?: string): Promise<void>
 
   later: {
     list(): Promise<LaterEntry[]>

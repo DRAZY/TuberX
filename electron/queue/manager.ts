@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { basename, join } from 'node:path'
 import { appendFileSync, mkdirSync, statSync, renameSync, readdirSync, rmSync } from 'node:fs'
 import { app } from 'electron'
-import type { DownloadProgress, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
+import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
 import { TuberDb } from '../db/database'
 import { download, fetchMetadata } from '../engine/ytdlp'
@@ -222,6 +222,17 @@ export class QueueManager extends EventEmitter {
     if (!format) return void this.update(row.id, { status: 'failed', error: 'no format available' })
 
     const force = this.redo.delete(row.id)
+    // Re-download in a *different* format: keep the earlier file by tagging the new name with its quality
+    // (unless the user prefers replacing). Same format again = refresh in place.
+    // Naming on re-download. A format this row already produced refreshes its own file. A new video
+    // format on a row that already has a video file gets the quality in its name (keep-both) or
+    // overwrites (replace). Audio kinds never collide: their extensions differ.
+    const variants = { ...(row.downloadedVariants ?? {}) }
+    const collides = format.kind === 'video' || format.kind === 'video-only'
+    const hasVideoFile = Object.keys(variants).some((id) => id.startsWith('v'))
+    let nameTag: string | undefined
+    if (force && format.id in variants) nameTag = variants[format.id] || undefined
+    else if (force && collides && hasVideoFile && settings.onConflict === 'keep-both') nameTag = qualityTag(format)
     if (settings.skipIfExists && !force && this.db.historyHas(urlKey(row.url))) {
       this.update(row.id, { status: 'skipped', error: undefined })
       return this.pump()
@@ -233,7 +244,7 @@ export class QueueManager extends EventEmitter {
     // A resumed row keeps its bar where it paused until the engine reports fresh numbers.
     const seed = row.progress?.stage === 'download' && row.progress.percent > 0 ? { ...row.progress, speed: undefined, eta: undefined } : { stage: 'download' as const, percent: 0 }
     this.update(row.id, { status: 'downloading', progress: seed })
-    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
+    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} nameTag=${nameTag ?? '-'} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
     try {
       const result = await download({
         url: row.url,
@@ -243,6 +254,7 @@ export class QueueManager extends EventEmitter {
         settings,
         signal: ac.signal,
         force,
+        nameTag,
         onLog: (line) => engineLog(row.id, line),
         onProgress: (p) => {
           const r = this.rows.find((x) => x.id === row.id)
@@ -260,7 +272,10 @@ export class QueueManager extends EventEmitter {
       if (result.skipped) {
         this.update(row.id, { status: 'skipped', outputPath: result.outputPath || undefined, progress: undefined })
       } else {
-        this.update(row.id, { status: 'done', outputPath: result.outputPath, progress: undefined })
+        // the plain name now holds this format; any other format that used the plain name was overwritten
+        if (!nameTag) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && (collides === (id.startsWith('v')))) delete variants[id]
+        variants[format.id] = nameTag ?? ''
+        this.update(row.id, { status: 'done', outputPath: result.outputPath, progress: undefined, downloadedVariants: variants })
         this.db.addHistory(
           {
             id: randomUUID(),
@@ -326,6 +341,18 @@ export function cleanupPartials(title: string): void {
     }
   } catch {
     /* nothing to clean */
+  }
+}
+
+/** "1080p", "4K", "MP3", "WAV", "video only": the suffix added to a keep-both re-download. */
+export function qualityTag(format: FormatOption): string {
+  switch (format.kind) {
+    case 'video':
+      return format.height ? (format.height >= 2160 ? '4K' : `${format.height}p`) : 'best'
+    case 'video-only':
+      return format.height ? `${format.height}p video only` : 'video only'
+    default:
+      return format.kind.toUpperCase()
   }
 }
 

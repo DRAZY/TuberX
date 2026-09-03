@@ -210,7 +210,22 @@ function commitProxy(): void {
       <!-- Downloads -->
       <section class="border-b border-tx-border py-4">
         <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Downloads</h3>
+        <label class="mt-2 block text-[12px]">
+          Re-downloading in a different format
+          <select
+            class="tx-field mt-1"
+            :value="store.settings.onConflict"
+            @change="set('onConflict', ($event.target as HTMLSelectElement).value as Settings['onConflict'])"
+          >
+            <option value="keep-both">Keep both files (adds the quality to the name)</option>
+            <option value="replace">Replace the existing file</option>
+          </select>
+        </label>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">
+          Downloading the same format again always refreshes the file in place.
+        </p>
         <Toggle
+          class="mt-2"
           :model-value="store.settings.skipIfExists"
           label="Skip if the file already exists"
           @update:model-value="set('skipIfExists', $event)"

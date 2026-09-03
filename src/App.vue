@@ -151,9 +151,12 @@ watch(
 
 function onContextMenu(e: MouseEvent): void {
   const target = e.target as HTMLElement | null
-  // Leave the browser menu alone inside text fields so cut/copy/paste keep working there.
-  if (target?.closest('input, textarea, [contenteditable="true"]')) return
   e.preventDefault()
+  // Text fields (the Add-links box, settings inputs) get a native edit menu: Electron shows none by default.
+  if (target?.closest('input, textarea, [contenteditable="true"]')) {
+    void guard(() => window.tuberx.contextMenu('edit'))
+    return
+  }
   const rowEl = target?.closest<HTMLElement>('[data-row-id]')
   void guard(() => window.tuberx.contextMenu(rowEl ? 'row' : 'app', rowEl?.dataset.rowId))
 }

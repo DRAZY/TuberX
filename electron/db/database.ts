@@ -58,6 +58,10 @@ export class TuberDb {
         last_used INTEGER NOT NULL
       );
     `)
+    // Additive column migrations: check first, then add, and never swallow a real failure
+    // (a missing column surfaces on the first write as an opaque "SQL logic error").
+    const columns = new Set((this.db.prepare('PRAGMA table_info(queue)').all() as { name: string }[]).map((c) => c.name))
+    if (!columns.has('downloaded_variants')) this.db.exec('ALTER TABLE queue ADD COLUMN downloaded_variants TEXT')
   }
 
   /** Run one statement per value inside a single transaction. */
@@ -72,6 +76,7 @@ export class TuberDb {
       this.db.exec('ROLLBACK')
       throw e
     }
+
   }
 
   // ---- queue ----
@@ -88,16 +93,18 @@ export class TuberDb {
       media: r.media_json ? JSON.parse(r.media_json) : undefined,
       outputPath: r.output_path ?? undefined,
       error: r.error ?? undefined,
+      downloadedVariants: r.downloaded_variants ? JSON.parse(r.downloaded_variants) : undefined,
     }))
   }
 
   saveRow(row: QueueRow, position: number) {
     this.db
       .prepare(
-        `INSERT INTO queue (id,url,added_at,status,format_id,destination,media_json,output_path,error,position)
-         VALUES (@id,@url,@added_at,@status,@format_id,@destination,@media_json,@output_path,@error,@position)
+        `INSERT INTO queue (id,url,added_at,status,format_id,destination,media_json,output_path,error,position,downloaded_variants)
+         VALUES (@id,@url,@added_at,@status,@format_id,@destination,@media_json,@output_path,@error,@position,@downloaded_variants)
          ON CONFLICT(id) DO UPDATE SET status=excluded.status, format_id=excluded.format_id, destination=excluded.destination,
-           media_json=excluded.media_json, output_path=excluded.output_path, error=excluded.error, position=excluded.position`,
+           media_json=excluded.media_json, output_path=excluded.output_path, error=excluded.error, position=excluded.position,
+           downloaded_variants=excluded.downloaded_variants`,
       )
       .run({
         id: row.id,
@@ -110,6 +117,7 @@ export class TuberDb {
         output_path: row.outputPath ?? null,
         error: row.error ?? null,
         position,
+        downloaded_variants: row.downloadedVariants ? JSON.stringify(row.downloadedVariants) : null,
       })
   }
 

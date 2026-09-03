@@ -3,9 +3,9 @@ task: "TuberX — cross-platform media downloader on Electron"
 slug: 20260902-114500_tuberx-media-downloader
 project: TuberX
 phase: execute
-progress: 20/65
+progress: 21/66
 started: 2026-09-02T18:45:00Z
-updated: 2026-09-03T05:20:00Z
+updated: 2026-09-03T05:50:00Z
 principal_stated_goal: "I need a Microsoft Windows equivalent to this."
 principal_stated_goal_source: prompt
 principal_stated_goal_signal: 2
@@ -124,7 +124,7 @@ Why: the shell is cheap and the tools are the product; bundling, updating and is
 
 - [ ] ISC-1: `bun run build:win` produces a 64-bit NSIS installer in `release/`.
 - [ ] ISC-1.1: The same build produces a 64-bit portable `.exe` that runs without installing.
-- [ ] ISC-24.2: Download-again with a different format replaces the file with that format (ffprobe/ffmpeg shows the new resolution).
+- [x] ISC-24.2: Download-again with a different video quality produces a second file named with that quality, leaves the first intact, and repeating a format refreshes its own file (ffmpeg shows the expected resolutions).
 - [ ] ISC-24.1: A download whose ffmpeg stage produces no output for 10 minutes is killed, including ffmpeg, and the row fails with a message naming the stage.
 - [x] ISC-1.2: `bun run build:mac` produces a `.dmg` that launches on macOS and resolves a URL.
 - [ ] ISC-2: The installer installs and launches TuberX on a clean Windows 10/11 x64 machine.
@@ -263,6 +263,7 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 - 2026-09-02 18:30: Progress bar ran backwards because each of the 2+ files yt-dlp downloads (video, audio) reported its own 0–100 %. The bar now aggregates bytes across parts, caps at 95 % until the last part begins, never decreases, and shows "part n/m".
 - 2026-09-02 21:30: Andre: per-row Pause / Stop / Resume, and re-download in another format. Shipped in 0.2.10: Pause aborts the process tree but keeps partials (`paused` status, bar held); Resume restarts and aria2c `-c` / yt-dlp `--continue` pick the partial up (verified: paused at 18 %, resumed at 20 %); Stop aborts, deletes the temp-dir partials and returns the row to Ready; finished rows get a Download-again control, and an explicit re-download bypasses the history skip once. Found on the way: aria2c's status line defaults to every 60 s, so a fast transfer showed 0 % until 95 %; `--summary-interval=1` fixed it. `TUBERX_ARIA2_LIMIT` throttles aria2c for tests.
 - 2026-09-02 22:15: Andre: Download-again at a different quality re-produced the old file. Root cause in yt-dlp, not the picker: `--no-overwrites` treats an existing *output file name* as "already downloaded" regardless of format, prints `has already been downloaded`, skips the transfer, and post-processes the old file, so the row reported done with the same bytes. The format selection itself was correct (verified `--load-info-json` + `-S res:2160/1440/1080` → 315/308/299). Fix: an explicit re-download passes `--force-overwrites`; verified 240p (862 KB) → 144p (736 KB) with `force=true` in the engine log. Window default confirmed as option 1 (600×680).
+- 2026-09-02 22:40: Andre: overwriting on re-download must not destroy a file the user wanted in another quality. Design: every row remembers the formats it has produced and the name each was saved under (`downloadedVariants`). A format seen before refreshes its own file; a new video quality on a row that already has a video file is saved as "Title [1080p].mp4" (setting `onConflict: keep-both`, default) or overwrites (`replace`); audio kinds never collide. Verified all six cases end to end. Also: dev instances now use their own app-data folder (`TuberX-dev`) so they never share a database or single-instance lock with an installed TuberX; a silently swallowed ALTER TABLE had surfaced as "SQL logic error", so column migrations now check `PRAGMA table_info` and never swallow. Right-click inside text fields (the Add-links box) now shows a native Cut/Copy/Paste/Select-all menu; Electron has none by default.
 - 2026-09-02 11:45: Build order: F0 → F1 → F2 → F3 fixtures → F5 → F4 → F6 → F8 → F7 → F9.
 
 ## Learning
@@ -301,6 +302,7 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 - ISC-22.2: scripts/bench-download.sh 2026-09-02 — native 4.15 MiB/s (best of three native runs: 2.5–5.0), aria2c -x16 8.70 MiB/s → 2.1x; in-app aria2 run reached 11 MiB/s.
 - ISC-28: Vimeo 1084537 via player fallback downloads 177 MiB HLS in 6 s (29 MiB/s, native + 4 fragments) and merges to MP4 (2026-09-02).
 - ISC-49.2: `yt-dlp -v` with `--plugin-dirs resources/pot/plugins` + `server_home=resources/pot/server` → `bgutil:script-deno-1.3.2 (external)`; earlier run logged `Executing command to get POT via script: …/deno run --allow-env --allow-net …` (2026-09-02). Windows half by construction (same tree, win32 canvas addon), unrun.
+- ISC-24.2: scripted run 2026-09-02 22:40 — 240p plain → [144p] added → 144p again refreshes [144p] → mp3 plain → 240p again refreshes plain → replace mode overwrites plain; engine log `nameTag` column matches.
 - ISC-22: tests/progress.test.ts + live progress observed in docs/reference/tuberx-dev-4.png (2026-09-02).
 - ISC-16: `bun test` tests/normalize.test.ts (21 pass, 2026-09-02).
 - ISC-27: resolve via `bun scripts/site-check.ts`; download via flag-set smoke on jNQXAC9IVRw → MP4 with mov_text subs, png cover, chapters, tags (ffprobe, 2026-09-02).

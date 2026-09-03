@@ -13,6 +13,8 @@ import { QueueManager } from './queue/manager'
 import { getSettings } from './settings'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
+// A dev instance must never share settings, database or single-instance lock with an installed TuberX.
+if (!app.isPackaged) app.setPath('userData', join(app.getPath('appData'), 'TuberX-dev'))
 let win: BrowserWindow | null = null
 let db: TuberDb | null = null
 let queue: QueueManager | null = null
