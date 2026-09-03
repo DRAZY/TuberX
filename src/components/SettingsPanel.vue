@@ -377,5 +377,9 @@ function commitProxy(): void {
         />
       </section>
     </div>
+    <footer class="flex shrink-0 items-center justify-between border-t border-tx-border px-4 py-2 text-[10px] text-tx-muted">
+      <span>Changes apply immediately.</span>
+      <button type="button" class="tx-btn-accent text-[12px]" @click="ui.close()">Done</button>
+    </footer>
   </div>
 </template>

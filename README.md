@@ -40,6 +40,8 @@ TuberX opens as a compact applet (600×680) centred on your main display, painte
 - **Network:** proxy, Prefer IPv4 (on by default), cookies from a browser, a cookies.txt file, and the PO-token helper.
 - **Engine:** status of every bundled tool and a manual "Update yt-dlp now".
 
+The Settings, Later and History drawers close when you click outside them, press Escape, or add a link, and Settings has a Done button; changes apply the moment you make them.
+
 ## Troubleshooting
 
 **"Sign in to confirm you're not a bot" from YouTube.** Almost always an IPv6 connection; TuberX connects over IPv4 by default, which resolves it. If it persists, the bundled PO-token helper handles most remaining cases without a login (it needs `jnn-pa.googleapis.com` reachable; some DNS filters block that host, and TuberX tells you if yours does). As a last resort, Settings › Network can use your browser's cookies (Firefox works best on Windows) or an imported cookies.txt.

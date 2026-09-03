@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { extractUrls } from '@shared/urls'
 import TitleBar from '@/components/TitleBar.vue'
 import DropZone from '@/components/DropZone.vue'
@@ -139,6 +139,14 @@ function onKeyDown(e: KeyboardEvent): void {
   }
 }
 
+// A drawer is a detour; the moment links arrive the list is what matters, so close it.
+watch(
+  () => queue.rows.length,
+  (now, before) => {
+    if (now > before && drawerOpen.value) ui.close()
+  },
+)
+
 // --- right-click -----------------------------------------------------------
 
 function onContextMenu(e: MouseEvent): void {
@@ -214,6 +222,11 @@ onBeforeUnmount(() => {
         class="pointer-events-none absolute inset-2 z-10 rounded-lg border-2 border-dashed border-tx-accent/70"
         aria-hidden="true"
       />
+
+      <!-- Click anywhere outside a drawer to dismiss it -->
+      <Transition enter-active-class="transition-opacity duration-150" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-150" leave-to-class="opacity-0">
+        <div v-if="drawerOpen" class="absolute inset-0 z-[15] bg-black/45" aria-hidden="true" @click="ui.close()" />
+      </Transition>
 
       <Transition
         enter-active-class="transition-transform duration-150 ease-out"
