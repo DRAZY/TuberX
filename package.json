@@ -1,7 +1,7 @@
 {
   "name": "tuberx",
   "productName": "TuberX",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "description": "TuberX \u2014 paste a link, get the media. A fast, standalone video and audio downloader for Windows and Apple-silicon Macs, powered by a self-updating yt-dlp.",
   "author": "Andre Hall",
   "license": "MIT",

@@ -79,22 +79,26 @@ const STAGE_LABEL: Record<string, string> = {
 }
 const postProcessing = computed(() => !!progress.value && progress.value.stage !== 'download')
 
-// Elapsed time in the current post-processing pass: the only movement there is to show.
+// Elapsed time in the current pass, and how long since the engine last reported anything: a transfer
+// that has gone quiet says so instead of showing its last speed forever.
 const stageSince = ref(0)
+const lastReport = ref(0)
 const now = ref(Date.now())
 let ticker: ReturnType<typeof setInterval> | undefined
 watch(
-  () => progress.value?.stage,
-  (stage) => {
-    stageSince.value = Date.now()
-    now.value = stageSince.value
+  () => progress.value,
+  (p, prev) => {
+    now.value = Date.now()
+    lastReport.value = now.value
+    if (p?.stage !== prev?.stage) stageSince.value = now.value
     if (ticker) clearInterval(ticker)
     ticker = undefined
-    if (stage && stage !== 'download') ticker = setInterval(() => (now.value = Date.now()), 1000)
+    if (p) ticker = setInterval(() => (now.value = Date.now()), 1000)
   },
   { immediate: true },
 )
 onUnmounted(() => ticker && clearInterval(ticker))
+const quietFor = computed(() => Math.round((now.value - lastReport.value) / 1000))
 
 const progressLine = computed(() => {
   const p = progress.value
@@ -104,11 +108,12 @@ const progressLine = computed(() => {
     const label = STAGE_LABEL[p.stage] ?? 'Processing'
     return secs >= 3 ? `${label} · ${secs} s` : label
   }
-  const speed = p.speed ? `${formatBytes(p.speed)}/s` : ''
-  const eta = formatEta(p.eta)
   const size = p.totalBytes ? `${formatBytes(p.downloadedBytes ?? 0)} / ${formatBytes(p.totalBytes)}` : ''
   const via = p.downloader === 'aria2c' ? 'aria2' : ''
   const part = p.part && p.part.count > 1 ? `file ${p.part.index}/${p.part.count}` : ''
+  if (quietFor.value >= 8) return [`no data for ${quietFor.value} s`, size, part, via].filter(Boolean).join(' · ')
+  const speed = p.speed ? `${formatBytes(p.speed)}/s` : ''
+  const eta = formatEta(p.eta)
   return [speed, eta && `${eta} left`, size, part, via].filter(Boolean).join(' · ')
 })
 

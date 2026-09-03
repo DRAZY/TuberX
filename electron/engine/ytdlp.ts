@@ -217,6 +217,17 @@ export function dropLocalTemp(destination: string): void {
   }
 }
 
+const TRANSFER_IDLE_MS = 90 * 1000
+const STAGE_NAME: Record<string, string> = {
+  download: 'downloading',
+  merge: 'merging video and audio',
+  convert: 'converting',
+  subs: 'embedding subtitles',
+  tag: 'writing tags',
+  cover: 'embedding cover art',
+  move: 'moving the file',
+}
+
 export async function download(job: DownloadJob): Promise<DownloadResult> {
   const bin = must('yt-dlp')
   const { settings, format } = job
@@ -283,7 +294,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     // --summary-interval=1: aria2c prints its "[#gid done/total(pct%) CN DL ETA]" line once a second; the
     // default is every 60 s, which left the bar at 0 % for the whole of a fast transfer. Notice-level
     // console output must stay on for those lines to appear.
-    const aria2Args = ['-c', '-x', '16', '-s', '16', '-k', '1M', '--min-split-size=1M', '--file-allocation=none', '--max-tries=5', '--retry-wait=2', '--summary-interval=1']
+    const aria2Args = ['-c', '-x', '16', '-s', '16', '-k', '1M', '--min-split-size=1M', '--file-allocation=none', '--max-tries=5', '--retry-wait=2', '--auto-save-interval=10', '--summary-interval=1']
     if (process.env.TUBERX_ARIA2_LIMIT) aria2Args.push(`--max-overall-download-limit=${process.env.TUBERX_ARIA2_LIMIT}`) // dev/test throttle
     args.push(
       '--downloader', aria2,
@@ -335,13 +346,14 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     emittedMax = pct
     return { ...p, percent: Math.round(pct * 10) / 10, downloadedBytes: done, totalBytes: known || undefined, part: { index: parts.length, count: Math.max(expectedParts, parts.length) } }
   }
-  const { done } = run(bin, args, {
+  const launch = () => run(bin, args, {
     signal: inner.signal,
     pathPrepend: toolDirs(),
     env: engineEnv(),
-    // No output for 10 minutes means ffmpeg or aria2c is wedged (antivirus / OneDrive locks are the usual
-    // Windows culprits). Kill the tree and say which stage, instead of spinning forever.
-    idleTimeoutMs: 10 * 60 * 1000,
+    // A transfer that prints nothing for 90 s is wedged (a stuck connection in aria2c is the usual
+    // shape); it is killed and restarted, and both aria2c and yt-dlp resume from what is on disk.
+    // Post-processing gets 10 minutes: a merge of a large file on a slow disk is silent but alive.
+    idleTimeoutMs: () => (lastStage === 'download' ? TRANSFER_IDLE_MS : 10 * 60 * 1000),
     onLine: (line, stream) => {
       job.onLog?.(line)
       const final = parseFinalPath(line)
@@ -374,8 +386,13 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
         if (stderrTail.length > 30) stderrTail.shift()
       }
     },
-  })
-  let res = await done
+  }).done
+  let res = await launch()
+  for (let restart = 1; res.stalled && lastStage === 'download' && !job.signal?.aborted && restart <= 2; restart++) {
+    job.onLog?.(`watchdog: no data for ${TRANSFER_IDLE_MS / 1000} s; restarting the transfer (${restart}/2), resuming from what is on disk`)
+    parts.length = 0
+    res = await launch()
+  }
   if (job.signal?.aborted) throw new Error('cancelled')
   if (alreadyExists && !job.overwrite) {
     job.onLog?.(`kept existing file untouched: ${existingPath}`)
@@ -385,11 +402,13 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     // Saved URLs went stale: extract again once, the slow-but-sure way.
     job.onLog?.('saved info JSON rejected by the server; refetching')
     const fresh = [...args.slice(0, args.length - infoArgs.length), ...urlArgs]
-    res = await run(bin, fresh, { signal: job.signal, pathPrepend: toolDirs(), env: engineEnv(), idleTimeoutMs: 10 * 60 * 1000, onLine: (l) => job.onLog?.(l) }).done
+    res = await run(bin, fresh, { signal: inner.signal, pathPrepend: toolDirs(), env: engineEnv(), idleTimeoutMs: 10 * 60 * 1000, onLine: (l) => job.onLog?.(l) }).done
   }
   if (res.stalled) {
-    const stage = { download: 'downloading', merge: 'merging video and audio', convert: 'converting', tag: 'tagging' }[lastStage]
-    job.onLog?.(`watchdog: no output for 10 minutes while ${stage}; process tree killed`)
+    const stage = STAGE_NAME[lastStage] ?? lastStage
+    job.onLog?.(`watchdog: no output while ${stage}; process tree killed${res.orphaned ? ' (parent had to be force-killed)' : ''}`)
+    if (lastStage === 'download')
+      throw new Error(`Stalled while downloading: the transfer went silent three times in a row. The site may be throttling or cutting the stream; try again in a few minutes, or turn aria2c off in Settings → Downloads.`)
     throw new Error(
       `Stalled while ${stage}: no progress for 10 minutes, so TuberX stopped it. Antivirus or OneDrive holding the file is the usual cause on Windows. Retry, or choose a destination folder outside OneDrive.`,
     )

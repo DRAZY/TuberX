@@ -60,6 +60,8 @@ Settings → Downloads → "Re-downloading in a different format" switches rule 
 
 **The end of a download takes a while.** After the transfer, yt-dlp merges video and audio, embeds subtitles, writes tags and chapters, and moves the file, and each of those passes rewrites the whole file. The row names the pass and counts the seconds. Large files on a slow disk, a OneDrive folder or under antivirus scanning are the slow cases. When the destination is on another drive, TuberX keeps its temporary files there too, so the final step is a rename rather than a copy.
 
+**A download stops moving.** The row says "no data for N s" as soon as the engine goes quiet. After 90 s of silence TuberX kills the transfer and restarts it, and aria2c and yt-dlp continue from what is already on disk; after three silent runs in a row the row fails with a message. Stop and Pause always land within a few seconds, even when the downloader is wedged.
+
 **A download is slow or fails.** Every yt-dlp line for every download is written to `engine.log` (Settings → Engine → Open log folder) in the app-data folder (`%APPDATA%\TuberX\logs` on Windows, `~/Library/Application Support/TuberX/logs` on macOS), rotated at 5 MB. It records the exact command, which downloader ran, speeds and the error text. Attach it to a bug report.
 
 **"This video is DRM-protected."** The site serves that video only through DRM, and no downloader can take it.

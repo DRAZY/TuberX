@@ -7,6 +7,8 @@ export interface RunResult {
   stderr: string
   /** Set when the idle watchdog killed the process for printing nothing for idleTimeoutMs. */
   stalled?: boolean
+  /** Set when the process did not exit after a kill and the run was given up on. */
+  orphaned?: boolean
 }
 
 export interface RunOptions {
@@ -17,8 +19,8 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv
   /** Directories to put in front of PATH for the child (bundled tool dirs). */
   pathPrepend?: string[]
-  /** Kill the whole process tree if no output arrives for this long (post-processing stalls). */
-  idleTimeoutMs?: number
+  /** Kill the whole process tree if no output arrives for this long; a function is re-read on every check. */
+  idleTimeoutMs?: number | (() => number)
 }
 
 /** Kill a child and everything it spawned (yt-dlp → ffmpeg/aria2c). */
@@ -28,14 +30,30 @@ export function killTree(child: ChildProcess): void {
     spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill())
     return
   }
-  // POSIX: children first (pkill -P), then the parent.
-  spawn('pkill', ['-P', String(child.pid)], { stdio: 'ignore' }).on('close', () => {
+  // POSIX: list the children first (once the parent is gone they reparent and can no longer be found),
+  // TERM them so aria2c can save its control file, kill the parent, then KILL any child still alive 3 s later.
+  const pg = spawn('pgrep', ['-P', String(child.pid)])
+  let out = ''
+  pg.stdout.on('data', (d: Buffer) => (out += d.toString()))
+  const finish = () => {
+    const kids = out.split(/\s+/).map(Number).filter((n) => n > 0)
+    for (const k of kids) sig(k, 'SIGTERM')
     try {
       child.kill('SIGKILL')
     } catch {
       /* already gone */
     }
-  }).on('error', () => child.kill('SIGKILL'))
+    setTimeout(() => kids.forEach((k) => sig(k, 'SIGKILL')), 3000)
+  }
+  pg.on('close', finish).on('error', finish)
+}
+
+function sig(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(pid, signal)
+  } catch {
+    /* already gone */
+  }
 }
 
 /**
@@ -76,28 +94,60 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): { child
   const done = new Promise<RunResult>((resolve, reject) => {
     let timer: NodeJS.Timeout | undefined
     let idle: NodeJS.Timeout | undefined
-    if (opts.timeoutMs) timer = setTimeout(() => killTree(child), opts.timeoutMs)
+    let giveUp: NodeJS.Timeout | undefined
+    let settled = false
+    let killing = false
+    const finish = (r: RunResult) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      if (idle) clearInterval(idle)
+      if (giveUp) clearTimeout(giveUp)
+      opts.signal?.removeEventListener('abort', onAbort)
+      resolve(r)
+    }
+    // A kill must always end the run. Tree kill first; if the process is still there after 5 s, a hard
+    // kill of the parent and the run is declared over (an orphaned aria2c or ffmpeg cannot hold the UI).
+    const kill = () => {
+      killing = true
+      killTree(child)
+      if (!giveUp)
+        giveUp = setTimeout(() => {
+          try {
+            child.kill('SIGKILL')
+          } catch {
+            /* gone */
+          }
+          finish({ code: null, stdout, stderr, stalled, orphaned: true })
+        }, 5000)
+    }
+    const idleLimit = () => (typeof opts.idleTimeoutMs === 'function' ? opts.idleTimeoutMs() : opts.idleTimeoutMs ?? 0)
+    if (opts.timeoutMs) timer = setTimeout(kill, opts.timeoutMs)
     if (opts.idleTimeoutMs) {
       idle = setInterval(() => {
-        if (Date.now() - lastActivity > opts.idleTimeoutMs!) {
+        const limit = idleLimit()
+        if (limit && Date.now() - lastActivity > limit && !killing) {
           stalled = true
-          killTree(child)
+          kill()
         }
-      }, Math.min(15000, Math.max(250, Math.floor(opts.idleTimeoutMs / 2))))
+      }, 1000)
     }
-    const onAbort = () => killTree(child)
+    const onAbort = () => kill()
     opts.signal?.addEventListener('abort', onAbort, { once: true })
     child.on('error', (err) => {
+      if (settled) return
+      settled = true
       if (timer) clearTimeout(timer)
       if (idle) clearInterval(idle)
+      if (giveUp) clearTimeout(giveUp)
       reject(err)
     })
-    child.on('close', (code) => {
-      if (timer) clearTimeout(timer)
-      if (idle) clearInterval(idle)
-      opts.signal?.removeEventListener('abort', onAbort)
-      resolve({ code, stdout, stderr, stalled })
+    // After a kill, the parent's exit is enough: a surviving grandchild still holding the pipes must
+    // not keep the promise open. A normal run waits for 'close' so the last output lines are read.
+    child.on('exit', (code) => {
+      if (killing) setTimeout(() => finish({ code, stdout, stderr, stalled }), 250)
     })
+    child.on('close', (code) => finish({ code, stdout, stderr, stalled }))
   })
   return { child, done }
 }
