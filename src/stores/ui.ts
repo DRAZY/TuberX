@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { MediaItem, ToastKind } from '@shared/types'
 
-export type PanelName = 'none' | 'later' | 'history' | 'settings' | 'multilink' | 'playlist'
+export type PanelName = 'none' | 'later' | 'history' | 'settings' | 'multilink' | 'playlist' | 'trim'
 
 export interface Toast {
   id: number
@@ -62,6 +62,17 @@ export const useUiStore = defineStore('ui', () => {
     )
   }
 
+  /** Row whose finished file the trim view is editing. */
+  const trimRowId = ref<string | null>(null)
+  function openTrim(rowId: string): void {
+    trimRowId.value = rowId
+    panel.value = 'trim'
+  }
+  function closeTrim(): void {
+    trimRowId.value = null
+    if (panel.value === 'trim') panel.value = 'none'
+  }
+
   function openPlaylist(rowId: string, media: MediaItem): void {
     playlistPrompt.value = { rowId, media }
     panel.value = 'playlist'
@@ -91,6 +102,9 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     anchor,
+    trimRowId,
+    openTrim,
+    closeTrim,
     panel,
     toasts,
     playlistPrompt,

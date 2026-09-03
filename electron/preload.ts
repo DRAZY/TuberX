@@ -49,6 +49,13 @@ const api: TuberXApi = {
     cancel: () => invoke('power:cancel'),
   },
   exportLinks: (kind) => invoke('export:links', kind),
+  media: {
+    url: (path) => invoke('media:url', path),
+  },
+  trim: {
+    export: (job) => invoke('trim:export', job),
+    cancel: () => invoke('trim:cancel'),
+  },
   shell: {
     reveal: (path) => invoke('shell:reveal', path),
     open: (path) => invoke('shell:open', path),

@@ -21,6 +21,7 @@ const thumbBroken = ref(false)
 const media = computed(() => props.row.media)
 const selected = computed(() => queue.isSelected(props.row.id))
 const settingsStore = useSettingsStore()
+const isAudioOutput = computed(() => /\.(mp3|m4a|wav|m4r|srt|vtt)$/i.test(props.row.outputPath ?? ''))
 const status = computed(() => props.row.status)
 
 const formats = computed(() => media.value?.formats ?? [])
@@ -352,6 +353,16 @@ function openPlaylist(): void {
             @click="queue.reveal(row.outputPath ?? '')"
           >
             Reveal
+          </button>
+          <button
+            v-if="row.outputPath && !isAudioOutput"
+            type="button"
+            class="shrink-0 text-tx-muted hover:text-tx-text"
+            title="Trim: pick an in and out point and export the clip"
+            aria-label="Trim"
+            @click="ui.openTrim(row.id)"
+          >
+            <Icon name="scissors" :size="14" />
           </button>
           <button
             type="button"

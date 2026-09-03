@@ -392,7 +392,7 @@ export class QueueManager extends EventEmitter {
 export function engineLogPath(): string {
   return join(app.getPath('userData'), 'logs', 'engine.log')
 }
-function engineLog(rowId: string, line: string) {
+export function engineLog(rowId: string, line: string) {
   try {
     const file = engineLogPath()
     mkdirSync(join(file, '..'), { recursive: true })

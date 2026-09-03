@@ -8,6 +8,7 @@ import LaterPanel from '@/components/LaterPanel.vue'
 import HistoryPanel from '@/components/HistoryPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import MultiLinkDialog from '@/components/MultiLinkDialog.vue'
+import TrimDialog from '@/components/TrimDialog.vue'
 import PlaylistPrompt from '@/components/PlaylistPrompt.vue'
 import Toasts from '@/components/Toasts.vue'
 import Icon from '@/components/Icon.vue'
@@ -194,6 +195,7 @@ onMounted(() => {
   unbinds.push(listen('ui:selectAll', () => queue.selectAll()))
   unbinds.push(listen('ui:about', () => ui.open('settings', 'about')))
   unbinds.push(listen('ui:export', (kind) => void window.tuberx.exportLinks(kind)))
+  unbinds.push(listen('ui:trim', ({ rowId }) => ui.openTrim(rowId)))
   unbinds.push(listen('power:countdown', (p) => (power.value = p.seconds > 0 ? p : null)))
   window.addEventListener('dragover', onDragOver)
   window.addEventListener('dragleave', onDragLeave)
@@ -259,6 +261,7 @@ onBeforeUnmount(() => {
       </Transition>
 
       <MultiLinkDialog v-if="ui.panel === 'multilink'" />
+      <TrimDialog v-if="ui.panel === 'trim' && ui.trimRowId" :row-id="ui.trimRowId" />
 
       <PlaylistPrompt
         v-if="ui.playlistPrompt"

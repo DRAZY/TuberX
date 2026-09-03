@@ -233,6 +233,10 @@ export interface MainEvents {
   'ui:selectAll': null
   'ui:about': null
   'ui:export': 'queue' | 'later' | 'history'
+  /** Progress of a trim export, 0–100. */
+  'trim:progress': { percent: number }
+  /** Open the trim view for a row (from the context menu). */
+  'ui:trim': { rowId: string }
   /** A sleep or shutdown is about to happen; the renderer shows the countdown with a Cancel. `seconds` 0 = cancelled. */
   'power:countdown': { action: 'sleep' | 'shutdown'; seconds: number }
   'toast': { kind: ToastKind; message: string }
@@ -309,6 +313,15 @@ export interface TuberXApi {
   }
   /** Save a list as a text file of links (history adds the file path after a tab); resolves to the path or null when cancelled. */
   exportLinks(kind: 'queue' | 'later' | 'history'): Promise<string | null>
+  media: {
+    /** A URL the renderer can play for a local file (custom protocol; range requests supported). */
+    url(path: string): Promise<string>
+  }
+  trim: {
+    /** Cut a segment into a new file beside the source; resolves to its path. */
+    export(job: { src: string; start: number; end: number; kind: 'mp4' | 'm4a' | 'm4r'; precise: boolean }): Promise<string>
+    cancel(): Promise<void>
+  }
   shell: {
     reveal(path: string): Promise<void>
     /** Open the file in its default app. */

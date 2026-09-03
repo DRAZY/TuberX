@@ -6,6 +6,7 @@ export type IconName =
   | 'history'
   | 'settings'
   | 'close'
+  | 'scissors'
   | 'check'
   | 'folder'
   | 'trash'
@@ -39,6 +40,7 @@ export const ICONS: Record<IconName, IconDef> = {
     ],
   },
   close: { d: ['M18 6 6 18', 'M6 6l12 12'] },
+  scissors: { d: ['M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M20 4 8.12 15.88', 'M14.47 14.48 20 20', 'M8.12 8.12 12 12'] },
   check: { d: ['m5 13 4 4L19 7'] },
   folder: { d: ['M4 7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z'] },
   trash: {

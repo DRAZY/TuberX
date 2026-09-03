@@ -10,11 +10,14 @@ import { registerIpc, send, schedulePowerAction } from './ipc/handlers'
 import { setPotReachable } from './engine/ytdlp'
 import { lookup } from 'node:dns/promises'
 import { QueueManager } from './queue/manager'
+import { registerMediaScheme, serveMedia } from './media'
 import { getSettings } from './settings'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
 // A dev instance must never share settings, database or single-instance lock with an installed TuberX.
 if (!app.isPackaged) app.setPath('userData', join(app.getPath('appData'), 'TuberX-dev'))
+registerMediaScheme()
+
 let win: BrowserWindow | null = null
 let db: TuberDb | null = null
 let queue: QueueManager | null = null
@@ -126,6 +129,7 @@ app.whenReady().then(async () => {
       /* picked later */
     }
   }
+  serveMedia()
   removeLegacySingleFileEngine()
   db = new TuberDb()
   queue = new QueueManager(db, getSettings)

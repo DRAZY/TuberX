@@ -12,6 +12,9 @@ import { checkAllTools } from '../engine/tools'
 import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
 import { bestEncoder } from '../engine/encoders'
+import { exportSegment } from '../engine/transcode'
+import { mediaUrl } from '../media'
+import { engineLog } from '../queue/manager'
 import { fetchMetadata } from '../engine/ytdlp'
 import type { QueueManager } from '../queue/manager'
 import { getSettings, patchSettings } from '../settings'
@@ -156,6 +159,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
         { type: 'separator' },
         { label: 'Open file', enabled: !!row.outputPath && row.status === 'done', click: () => void openFile(row.outputPath!) },
         { label: 'Open with…', enabled: !!row.outputPath && row.status === 'done', click: () => void openWith(row.outputPath!, win) },
+        { label: 'Trim…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:trim', { rowId: row.id }) },
         { label: 'Reveal in folder', enabled: !!row.outputPath, click: () => shell.showItemInFolder(row.outputPath!) },
         { label: 'Copy file path', enabled: !!row.outputPath, click: () => clipboard.writeText(row.outputPath!) },
         { label: 'Reveal file', enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },
@@ -310,6 +314,18 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('shell:open', (_e, path: string) => void openFile(path))
   ipcMain.handle('shell:openWith', async (e, path: string) => openWith(path, BrowserWindow.fromWebContents(e.sender) ?? undefined))
   ipcMain.handle('power:cancel', () => cancelPowerAction())
+  ipcMain.handle('media:url', (_e, path: string) => mediaUrl(path))
+  let trimAbort: AbortController | null = null
+  ipcMain.handle('trim:export', async (_e, job: { src: string; start: number; end: number; kind: 'mp4' | 'm4a' | 'm4r'; precise: boolean }) => {
+    trimAbort?.abort()
+    const ac = (trimAbort = new AbortController())
+    try {
+      return await exportSegment({ ...job, signal: ac.signal, onProgress: (percent) => send('trim:progress', { percent }), onLog: (l) => engineLog('trim', l) })
+    } finally {
+      if (trimAbort === ac) trimAbort = null
+    }
+  })
+  ipcMain.handle('trim:cancel', () => trimAbort?.abort())
   ipcMain.handle('export:links', async (e, kind: 'queue' | 'later' | 'history') => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const lines =
