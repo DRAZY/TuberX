@@ -157,7 +157,7 @@ app.whenReady().then(async () => {
     .then(({ address }) => {
       const blocked = address === '0.0.0.0' || address === '::' || address === '127.0.0.1'
       setPotReachable(!blocked)
-      if (blocked && getSettings().potHelper)
+      if (blocked && getSettings().potHelper === 'always')
         send('toast', { kind: 'warn', message: tm('toast.potBlocked') })
     })
     .catch(() => setPotReachable(false))

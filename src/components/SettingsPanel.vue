@@ -339,6 +339,13 @@ function commitProxy(): void {
           @update:model-value="set('useAria2', $event)"
         />
         <Toggle
+          class="mt-2"
+          :model-value="store.settings.engineMode === 'fast'"
+          :label="t('settings.downloads.fastEngine')"
+          :hint="t('settings.downloads.fastEngineHint')"
+          @update:model-value="set('engineMode', $event ? 'fast' : 'classic')"
+        />
+        <Toggle
           :model-value="store.settings.notifyOnComplete"
           :label="t('settings.downloads.notify')"
           @update:model-value="set('notifyOnComplete', $event)"
@@ -421,13 +428,15 @@ function commitProxy(): void {
           :hint="t('settings.network.ipv4Hint')"
           @update:model-value="set('forceIpv4', $event)"
         />
-        <Toggle
-          class="mt-3"
-          :model-value="store.settings.potHelper"
-          :label="t('settings.network.pot')"
-          :hint="t('settings.network.potHint')"
-          @update:model-value="set('potHelper', $event)"
-        />
+        <label class="mt-3 block text-[12px]">
+          {{ t('settings.network.pot') }}
+          <select class="tx-field mt-1" :value="store.settings.potHelper" @change="set('potHelper', ($event.target as HTMLSelectElement).value as Settings['potHelper'])">
+            <option value="auto">{{ t('settings.network.potAuto') }}</option>
+            <option value="always">{{ t('settings.network.potAlways') }}</option>
+            <option value="off">{{ t('settings.network.potOff') }}</option>
+          </select>
+        </label>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">{{ t('settings.network.potHint') }}</p>
       </section>
 
       <!-- Site login -->

@@ -364,7 +364,7 @@ export class QueueManager extends EventEmitter {
         engineLog(row.id, `--- retry nameTag=${plan.nameTag}: kept existing ${result.outputPath || 'same-named file'}`)
         result = await run(plan)
       }
-      if (!result.skipped && settings.videoCodec !== 'auto' && (format.kind === 'video' || format.kind === 'video-only')) {
+      if (!result.skipped && !result.codecApplied && settings.videoCodec !== 'auto' && (format.kind === 'video' || format.kind === 'video-only')) {
         // Forced codec: sources that arrived in anything else are re-encoded in place, with progress.
         const used = await convertVideo(result.outputPath, settings.videoCodec, {
           signal: ac.signal,

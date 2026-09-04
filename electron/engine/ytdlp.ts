@@ -11,6 +11,7 @@ import { basename } from 'node:path'
 import { run } from './run'
 import { app } from 'electron'
 import { getSecret } from '../secrets'
+import { downloadFast } from './fastpath'
 import { tm } from '../i18n'
 import { cpus } from 'node:os'
 import { spawn } from 'node:child_process'
@@ -48,7 +49,7 @@ export function redactArgs(args: string[]): string {
   return args.map((a, i) => (SECRET_FLAGS.has(args[i - 1]) ? '••••' : /\s/.test(a) ? JSON.stringify(a) : a)).join(' ')
 }
 
-function commonArgs(settings: Settings, url = ''): string[] {
+function commonArgs(settings: Settings, url = '', forcePot = false): string[] {
   // yt-dlp encodes what it prints with the locale's preferred encoding (cp1252 on Windows) and drops
   // characters it cannot represent, so a printed path stops matching the real file. Force UTF-8 on the
   // pipe; PYTHONUTF8=1 in engineEnv() covers the Python side.
@@ -73,7 +74,7 @@ function commonArgs(settings: Settings, url = ''): string[] {
   // bgutil PO-token helper: yt-dlp loads the plugin from the zip and runs the script through the bundled Deno.
   // Skipped when the network sinkholes its endpoint (see setPotReachable), so a doomed generation never
   // adds its timeout to every fetch.
-  const pot = settings.potHelper && potReachable ? potDir() : null
+  const pot = (settings.potHelper === 'always' || (forcePot && settings.potHelper !== 'off')) && potReachable ? potDir() : null
   if (pot && deno) {
     args.push('--plugin-dirs', join(pot, 'plugins'))
     args.push('--extractor-args', `youtubepot-bgutilscript:server_home=${join(pot, 'server')}`)
@@ -106,9 +107,9 @@ export async function fetchMetadata(url: string, settings: Settings, opts: Fetch
   if (opts.noPlaylist !== false && playlistUrlFromVideoUrl(url)) args.push('--no-playlist')
   let res = await run(bin, [...args, '--', url], { timeoutMs: 180000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done
   if (res.code !== 0 && /confirm you.re not a bot/i.test(res.stderr) && !opts.signal?.aborted) {
-    // Bot checks are often transient per request; one quiet retry before telling the user anything.
-    await new Promise((r) => setTimeout(r, 4000))
-    res = await run(bin, [...args, '--', url], { timeoutMs: 180000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done
+    // A sign-in check: retry once with the PO-token helper engaged (its 10-60 s cost is paid only here, not on every fetch).
+    const withPot = [...commonArgs(settings, url, true), '--dump-single-json', '--flat-playlist', '--skip-download', ...(opts.noPlaylist !== false && playlistUrlFromVideoUrl(url) ? ['--no-playlist'] : [])]
+    res = await run(bin, [...withPot, '--', url], { timeoutMs: 240000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done
   }
   if (res.code !== 0 || !res.stdout.trim()) {
     // Vimeo: anonymous web client is refused, the embed player is not. Retry there once.
@@ -182,6 +183,8 @@ export interface DownloadJob {
 export interface DownloadResult {
   outputPath: string
   skipped: boolean
+  /** The codec setting was already applied; the queue must not run a second conversion. */
+  codecApplied?: boolean
 }
 
 function buildFormatArgs(format: FormatOption, settings: Settings): string[] {
@@ -250,6 +253,18 @@ export function dropLocalTemp(destination: string): void {
   } catch {
     /* busy or already gone */
   }
+}
+
+/** yt-dlp flags that hand https transfers to aria2c with sixteen connections; fragment streams stay native. */
+function aria2Flags(aria2: string, settings: Settings): string[] {
+  // --summary-interval=1: aria2c prints its "[#gid done/total(pct%) CN DL ETA]" line once a second; the
+  // default is every 60 s, which left the bar at 0 % for the whole of a fast transfer.
+  const aria2Args = ['-c', '-x', '16', '-s', '16', '-k', '1M', '--min-split-size=1M', '--file-allocation=none', '--max-tries=5', '--retry-wait=2', '--auto-save-interval=10', '--summary-interval=1']
+  if (process.env.TUBERX_ARIA2_LIMIT) aria2Args.push(`--max-overall-download-limit=${process.env.TUBERX_ARIA2_LIMIT}`) // dev/test throttle
+  if (settings.rateLimitKbps > 0) aria2Args.push(`--max-overall-download-limit=${settings.rateLimitKbps}K`)
+  // HLS/DASH fragment streams (Vimeo, Dailymotion …) stay on yt-dlp's native downloader: aria2c cannot handle
+  // their encrypted fragments and yt-dlp reports them as DRM.
+  return ['--downloader', aria2, '--downloader', 'dash,m3u8:native', '--downloader-args', `aria2c:${aria2Args.join(' ')}`]
 }
 
 const TRANSFER_IDLE_MS = 90 * 1000
@@ -335,16 +350,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     // --summary-interval=1: aria2c prints its "[#gid done/total(pct%) CN DL ETA]" line once a second; the
     // default is every 60 s, which left the bar at 0 % for the whole of a fast transfer. Notice-level
     // console output must stay on for those lines to appear.
-    const aria2Args = ['-c', '-x', '16', '-s', '16', '-k', '1M', '--min-split-size=1M', '--file-allocation=none', '--max-tries=5', '--retry-wait=2', '--auto-save-interval=10', '--summary-interval=1']
-    if (process.env.TUBERX_ARIA2_LIMIT) aria2Args.push(`--max-overall-download-limit=${process.env.TUBERX_ARIA2_LIMIT}`) // dev/test throttle
-    if (settings.rateLimitKbps > 0) aria2Args.push(`--max-overall-download-limit=${settings.rateLimitKbps}K`)
-    args.push(
-      '--downloader', aria2,
-      // HLS/DASH fragment streams (Vimeo, Dailymotion …) stay on yt-dlp's native downloader:
-      // aria2c cannot handle their encrypted fragments and yt-dlp reports them as DRM.
-      '--downloader', 'dash,m3u8:native',
-      '--downloader-args', `aria2c:${aria2Args.join(' ')}`,
-    )
+    args.push(...aria2Flags(aria2, settings))
   }
 
   if (settings.rateLimitKbps > 0) args.push('--limit-rate', `${settings.rateLimitKbps}K`) // native downloader and fragment streams
@@ -355,6 +361,32 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   const urlArgs = ['--', job.media.url || job.url]
   const infoArgs = infoFresh ? ['--load-info-json', job.media.infoJsonPath!] : urlArgs
   args.push(...infoArgs)
+
+  // Parallel engine for video outputs: streams, subtitles and cover fetched together, one finishing write.
+  if (settings.engineMode !== 'classic' && (format.kind === 'video' || format.kind === 'video-only')) {
+    try {
+      if (!infoFresh) {
+        // The fast path works from the saved metadata; refresh it when it is stale so stream URLs are valid.
+        const fresh = await fetchMetadata(job.media.url || job.url, settings, { signal: job.signal, noPlaylist: true })
+        job.media.infoJsonPath = fresh.infoJsonPath
+        job.media.fetchedAt = fresh.fetchedAt
+      }
+      const aria2c = settings.useAria2 ? resolveTool('aria2c') : null
+      const r = await downloadFast(
+        {
+          media: job.media, format, formatArgs: buildFormatArgs(format, settings), destination: job.destination,
+          outputTemplate: job.nameTag ? `%(title).120B [${job.nameTag}].%(ext)s` : '%(title).120B.%(ext)s',
+          settings, overwrite: !!job.overwrite, signal: job.signal, onProgress: job.onProgress, onLog: job.onLog,
+        },
+        { bin, common: commonArgs(settings, job.media.url || job.url), aria2: aria2c ? aria2Flags(aria2c, settings) : null, env: engineEnv(), tempDir: tempDirFor(job.destination) },
+      )
+      return { outputPath: r.outputPath, skipped: r.skipped, codecApplied: true }
+    } catch (e) {
+      const msg = (e as Error).message
+      if (job.signal?.aborted || msg === 'cancelled') throw new Error('cancelled')
+      job.onLog?.(`fast path unavailable (${msg}); using the classic pipeline`)
+    }
+  }
 
   job.onLog?.(`argv: ${redactArgs(args)}`)
   let outputPath = ''
@@ -449,6 +481,12 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   if (alreadyExists && !job.overwrite) {
     job.onLog?.(`kept existing file untouched: ${existingPath}`)
     return { outputPath: existingPath, skipped: true }
+  }
+  if (res.code !== 0 && !res.stalled && /confirm you.re not a bot/i.test(res.stderr) && !job.signal?.aborted && settings.potHelper === 'auto') {
+    // Sign-in check on the download itself: one more run with the PO-token helper engaged.
+    job.onLog?.('sign-in check on download; retrying once with the PO-token helper')
+    const withPot = [...commonArgs(settings, job.media.url || job.url, true), ...args.slice(commonArgs(settings, job.media.url || job.url).length)]
+    res = await run(bin, withPot, { signal: inner.signal, pathPrepend: toolDirs(), env: engineEnv(), idleTimeoutMs: 10 * 60 * 1000, onLine: (l) => job.onLog?.(l) }).done
   }
   if (res.code !== 0 && infoFresh && !res.stalled && /403|expired|Requested format is not available|HTTP Error 4/i.test(res.stderr)) {
     // Saved URLs went stale: extract again once, the slow-but-sure way.

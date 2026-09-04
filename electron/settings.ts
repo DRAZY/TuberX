@@ -28,7 +28,7 @@ function migrate(s: Settings, from: number): Settings {
     if (next.concurrentDownloads === 2) next.concurrentDownloads = 3
   }
   if (from < 3) {
-    next.potHelper = true
+    next.potHelper = 'auto'
     next.cookiesFile = next.cookiesFile ?? ''
   }
   if (from < 4) next.forceIpv4 = true
@@ -41,6 +41,12 @@ function migrate(s: Settings, from: number): Settings {
     next.loginUsername = next.loginUsername ?? ''
     next.videoPassword = next.videoPassword ?? ''
     next.userAgent = next.userAgent ?? 'default'
+  }
+  if (from < 12) {
+    // The helper used to be a boolean; true becomes on-demand, which is what removed the 10-60 s per-run cost.
+    const legacy = next.potHelper as unknown
+    next.potHelper = legacy === true ? 'auto' : legacy === false ? 'off' : (legacy as Settings['potHelper']) ?? 'auto'
+    next.engineMode = next.engineMode ?? 'fast'
   }
   next.settingsVersion = DEFAULT_SETTINGS.settingsVersion
   store.set('settings', next)

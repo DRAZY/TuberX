@@ -55,7 +55,7 @@ You found a video, a talk, a mix, an album, a lecture series. You want it as a f
 - **Batch rename.** Prefix, suffix, numbering and a live preview of every new name across the selected rows. Rows and history follow the rename.
 
 ### Fast and unbreakable
-- **Speed.** Sixteen connections per file through aria2c, parallel fragment downloads for HLS/DASH sites, up to eight downloads at once, and an optional speed limit for shared networks. Links resolve in a couple of seconds and downloads begin immediately from the metadata already fetched.
+- **Speed.** A parallel engine: the video track, the audio track, the subtitles and the cover download at the same time, each through aria2c with sixteen connections, and one ffmpeg pass then writes the finished file once with everything inside. Measured on a 245 MB 1080p60 video, 53 s became 23 s. Up to eight downloads at once, HLS/DASH fragments in parallel, an optional speed limit for shared networks. Links resolve in a couple of seconds and downloads begin immediately from the metadata already fetched.
 - **Pause, Stop, Resume, Download again.** Pause keeps what has been transferred. A different quality of a file you already have lands beside it, never over it.
 - **Self-healing.** A transfer that goes silent restarts itself and resumes. A site that changed its pages triggers an immediate yt-dlp update and a retry. The engine also checks for a new build daily, independent of app releases. Every engine line is logged and one click away for support.
 - **After the queue.** Open the folder, put the machine to sleep or shut it down when the last download finishes, with a 30-second warning you can cancel. Finished rows open in the default app, in an app you choose, or reveal in the folder.
@@ -93,7 +93,7 @@ TuberX opens as a compact applet (600×680) centred on your main display, painte
 - **Subtitles:** embed, also save `.srt` files, languages.
 - **Thumbnails:** save beside the file as JPG or PNG.
 - **Downloads:** re-download naming (keep both files or replace), skip files already downloaded, speed limit, what happens when the queue finishes, concurrent downloads (1–8), aria2c on/off, notifications.
-- **Network:** proxy, Prefer IPv4 (on by default), cookies from a browser, a cookies.txt file, and the PO-token helper.
+- **Network:** proxy, Prefer IPv4 (on by default), cookies from a browser, a cookies.txt file, and the PO-token helper (when needed, always, or off; each run of it costs 10 to 60 seconds, so "when needed" is the default).
 - **Site login:** username and password (keychain), video password, user-agent choice.
 - **Engine:** status of every bundled tool, a manual "Update yt-dlp now", and the log folder.
 - **About:** version, platform and links.
@@ -115,7 +115,7 @@ Settings → Downloads → "Re-downloading in a different format" switches rule 
 
 **"Sign in to confirm you're not a bot" from YouTube.** Almost always an IPv6 connection; TuberX connects over IPv4 by default, which resolves it. If it persists, the bundled PO-token helper handles most of the rest, and Settings → Network has cookie options as a last resort.
 
-**The end of a download takes a while.** After the transfer, yt-dlp merges video and audio, embeds subtitles, writes tags and chapters, and moves the file, and each of those passes rewrites the whole file. The row names the pass and counts the seconds. Large files on a slow disk, a OneDrive folder or under antivirus scanning are the slow cases. When the destination is on another drive, TuberX keeps its temporary files there too, so the final step is a rename rather than a copy. A forced codec adds a conversion pass with its own progress.
+**The end of a download takes a while.** With the parallel engine the finishing pass is a single write and takes about a second on an SSD; the log line `fast: done in …` breaks a job down into select, streams, finish and move so a slow step is named. The classic pipeline (Settings → Downloads → Parallel engine off) still works the old way: After the transfer, yt-dlp merges video and audio, embeds subtitles, writes tags and chapters, and moves the file, and each of those passes rewrites the whole file. The row names the pass and counts the seconds. Large files on a slow disk, a OneDrive folder or under antivirus scanning are the slow cases. When the destination is on another drive, TuberX keeps its temporary files there too, so the final step is a rename rather than a copy. A forced codec adds a conversion pass with its own progress.
 
 **A download stops moving.** The row says "no data for N s" as soon as the engine goes quiet. After 90 s of silence TuberX kills the transfer and restarts it, and aria2c and yt-dlp continue from what is already on disk; after three silent runs in a row the row fails with a message. Stop and Pause always land within a few seconds, even when the downloader is wedged.
 

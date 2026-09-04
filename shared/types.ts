@@ -181,7 +181,10 @@ export interface Settings {
   /** Talk to sites over IPv4 only. YouTube bot-checks many residential IPv6 ranges; the reference macOS downloader forces IPv4 too. */
   forceIpv4: boolean
   /** Run the bundled bgutil PO-token helper for YouTube (avoids "Sign in to confirm you're not a bot") */
-  potHelper: boolean
+  /** PO-token helper for YouTube: auto = only after a sign-in check (it costs 10-60 s per run), always, or off. */
+  potHelper: 'auto' | 'always' | 'off'
+  /** fast = parallel streams and a single finishing pass (default); classic = plain yt-dlp pipeline. */
+  engineMode: 'fast' | 'classic'
   useAria2: boolean
   /** Download speed cap in KB/s for the whole app; 0 means no limit. */
   rateLimitKbps: number
@@ -224,7 +227,8 @@ export const DEFAULT_SETTINGS: Settings = {
   cookiesFromBrowser: '',
   cookiesFile: '',
   forceIpv4: true,
-  potHelper: true,
+  potHelper: 'auto',
+  engineMode: 'fast',
   useAria2: true,
   rateLimitKbps: 0,
   concurrentDownloads: 3,
@@ -236,7 +240,7 @@ export const DEFAULT_SETTINGS: Settings = {
   userAgent: 'default',
   autoUpdateEngine: true,
   language: 'auto',
-  settingsVersion: 11,
+  settingsVersion: 12,
 }
 
 /** Events the main process pushes to the renderer. */
