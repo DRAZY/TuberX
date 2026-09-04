@@ -14,3 +14,6 @@ resources/.xc/
 .xc/
 .dc2/
 docs/private/
+
+# agent worktrees
+.claude/worktrees/
