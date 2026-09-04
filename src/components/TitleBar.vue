@@ -4,6 +4,7 @@ import { useSubsStore } from '@/stores/subs'
 import Icon from '@/components/Icon.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const subs = useSubsStore()
 void subs.ensureLoaded()
@@ -12,7 +13,7 @@ const settings = useSettingsStore()
 
 function disableProxy(): void {
   void settings.update({ proxyEnabled: false })
-  ui.toast('info', 'Proxy off')
+  ui.toast('info', t('titlebar.proxyOff'))
 }
 </script>
 
@@ -36,22 +37,22 @@ function disableProxy(): void {
         v-if="settings.settings.proxyEnabled"
         type="button"
         class="tx-no-drag mr-1 flex items-center gap-1 rounded border border-tx-border bg-tx-row px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-tx-muted hover:border-tx-accent hover:text-tx-text"
-        title="Proxy is on — click to turn it off"
+        :title="t('titlebar.proxyTitle')"
         @click="disableProxy"
       >
         <Icon name="globe" :size="11" />
-        Proxy
+        {{ t('titlebar.proxy') }}
       </button>
 
-      <IconButton icon="later" label="Download Later" :active="ui.panel === 'later'" @click="ui.toggle('later')" />
-      <IconButton icon="history" label="History" :active="ui.panel === 'history'" @click="ui.toggle('history')" />
+      <IconButton icon="later" :label="t('titlebar.later')" :active="ui.panel === 'later'" @click="ui.toggle('later')" />
+      <IconButton icon="history" :label="t('titlebar.history')" :active="ui.panel === 'history'" @click="ui.toggle('history')" />
       <span class="relative">
-        <IconButton icon="rss" label="Subscriptions" :active="ui.panel === 'subs'" @click="ui.toggle('subs')" />
+        <IconButton icon="rss" :label="t('titlebar.subscriptions')" :active="ui.panel === 'subs'" @click="ui.toggle('subs')" />
         <span v-if="subs.newCount" class="pointer-events-none absolute -right-0.5 -top-0.5 min-w-[14px] rounded-full bg-tx-accent px-1 text-center text-[9px] font-semibold leading-[14px] text-white">{{ subs.newCount }}</span>
       </span>
       <IconButton
         icon="settings"
-        label="Settings"
+        :label="t('titlebar.settings')"
         :active="ui.panel === 'settings'"
         @click="ui.toggle('settings')"
       />

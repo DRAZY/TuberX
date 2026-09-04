@@ -15,7 +15,8 @@ import RenameDialog from '@/components/RenameDialog.vue'
 import PlaylistPrompt from '@/components/PlaylistPrompt.vue'
 import Toasts from '@/components/Toasts.vue'
 import Icon from '@/components/Icon.vue'
-import { PRESET_FORMATS } from '@/lib/formats'
+import { PRESET_FORMATS, presetLabel } from '@/lib/formats'
+import { t } from '@/lib/i18n'
 import { folderName } from '@/lib/paths'
 import { guard, listen } from '@/lib/ipc'
 import { useQueueStore } from '@/stores/queue'
@@ -69,7 +70,7 @@ function addFromTextFiles(files: File[]): void {
     if (pending > 0) return
     const unique = [...new Set(found)]
     if (unique.length) void queue.addUrls(unique)
-    else ui.toast('warn', 'No links in that file')
+    else ui.toast('warn', t('app.noLinksInFile'))
   }
 
   for (const file of files) {
@@ -79,7 +80,7 @@ function addFromTextFiles(files: File[]): void {
       finish()
     }
     reader.onerror = () => {
-      ui.toast('error', `Could not read ${file.name}`)
+      ui.toast('error', t('app.couldNotRead', { name: file.name }))
       finish()
     }
     reader.readAsText(file)
@@ -118,7 +119,7 @@ function onDrop(e: DragEvent): void {
   }
 
   const text = dt.getData('text/uri-list') || dt.getData('text/plain') || dt.getData('text')
-  if (!addFromText(text)) ui.toast('warn', 'No links in that drop')
+  if (!addFromText(text)) ui.toast('warn', t('app.noLinksInDrop'))
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -285,8 +286,8 @@ onBeforeUnmount(() => {
         class="absolute inset-x-4 bottom-4 z-30 flex items-center gap-3 rounded-lg border border-tx-accent/60 bg-tx-panel px-4 py-3 text-sm shadow-lg"
         role="alert"
       >
-        <span class="flex-1">{{ power.action === 'sleep' ? 'Sleeping' : 'Shutting down' }} in {{ power.seconds }} s — the queue is finished.</span>
-        <button type="button" class="tx-btn-accent" @click="cancelPower">Cancel</button>
+        <span class="flex-1">{{ t(power.action === 'sleep' ? 'power.sleeping' : 'power.shuttingDown', { seconds: power.seconds }) }}</span>
+        <button type="button" class="tx-btn-accent" @click="cancelPower">{{ t('common.cancel') }}</button>
       </div>
     </main>
 
@@ -296,7 +297,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="flex min-w-0 max-w-[180px] items-center gap-1.5 rounded border border-tx-border bg-tx-row px-2 py-1 text-[11px] text-tx-muted transition-colors hover:border-tx-muted hover:text-tx-text"
-        :title="settings.settings.destination || 'Choose where downloads go'"
+        :title="settings.settings.destination || t('footer.chooseDestination')"
         @click="settings.pickDestination()"
       >
         <Icon name="folder" :size="13" />
@@ -311,11 +312,11 @@ onBeforeUnmount(() => {
         class="h-7 max-w-[150px] rounded border border-tx-border bg-tx-bg px-2 text-xs text-tx-text outline-none transition-colors hover:border-tx-muted focus:border-tx-accent disabled:opacity-40"
         :value="applyFormat"
         :disabled="!queue.count"
-        title="Apply one format to every row"
+        :title="t('footer.applyToAllTitle')"
         @change="onApplyToAll"
       >
-        <option value="" disabled>Apply to all…</option>
-        <option v-for="f in PRESET_FORMATS" :key="f.id" :value="f.id">{{ f.label }}</option>
+        <option value="" disabled>{{ t('footer.applyToAll') }}</option>
+        <option v-for="f in PRESET_FORMATS" :key="f.id" :value="f.id">{{ presetLabel(f.id) }}</option>
       </select>
 
       <button
@@ -324,7 +325,7 @@ onBeforeUnmount(() => {
         :disabled="!queue.hasStartable"
         @click="queue.startAll()"
       >
-        Download All
+        {{ t('footer.downloadAll') }}
       </button>
     </footer>
   </div>

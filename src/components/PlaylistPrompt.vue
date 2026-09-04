@@ -7,6 +7,7 @@ import { useQueueStore } from '@/stores/queue'
 import { useLaterStore } from '@/stores/later'
 import { useUiStore } from '@/stores/ui'
 import { useSubsStore } from '@/stores/subs'
+import { t } from '@/lib/i18n'
 
 const props = defineProps<{ rowId: string; media: MediaItem }>()
 
@@ -78,17 +79,17 @@ async function subscribe(): Promise<void> {
     >
       <div class="shrink-0 border-b border-tx-border p-4">
         <h2 class="truncate text-sm font-semibold" :title="media.title">{{ media.title }}</h2>
-        <p class="mt-0.5 text-[11px] text-tx-muted">{{ entries.length }} videos in this playlist</p>
+        <p class="mt-0.5 text-[11px] text-tx-muted">{{ entries.length === 1 ? t('playlist.countOne') : t('playlist.countMany', { n: entries.length }) }}</p>
 
         <div class="mt-3 flex items-center gap-2">
           <div class="relative flex-1">
             <span class="absolute left-2 top-1/2 -translate-y-1/2 text-tx-muted">
               <Icon name="search" :size="12" />
             </span>
-            <input v-model="search" class="tx-field pl-7" placeholder="Search this playlist" />
+            <input v-model="search" class="tx-field pl-7" :placeholder="t('playlist.search')" />
           </div>
-          <button type="button" class="tx-btn-ghost" @click="selectAll">Select all</button>
-          <button type="button" class="tx-btn-ghost" @click="selectNone">None</button>
+          <button type="button" class="tx-btn-ghost" @click="selectAll">{{ t('playlist.selectAll') }}</button>
+          <button type="button" class="tx-btn-ghost" @click="selectNone">{{ t('playlist.none') }}</button>
         </div>
       </div>
 
@@ -118,24 +119,24 @@ async function subscribe(): Promise<void> {
           <span class="shrink-0 text-[11px] text-tx-muted">{{ formatDuration(entry.duration) }}</span>
         </li>
         <li v-if="!visible.length" class="px-4 py-6 text-center text-[11px] text-tx-muted">
-          Nothing matches that search.
+          {{ t('playlist.noMatch') }}
         </li>
       </ul>
 
       <div class="flex shrink-0 items-center justify-between gap-2 border-t border-tx-border p-3">
         <span class="flex items-center gap-2">
-          <button type="button" class="tx-btn-ghost" @click="addAllToLater">Add all to Later</button>
-          <button type="button" class="tx-btn-ghost" title="Follow this playlist or channel: new videos are spotted on every launch" @click="subscribe">Subscribe</button>
+          <button type="button" class="tx-btn-ghost" @click="addAllToLater">{{ t('playlist.addAllLater') }}</button>
+          <button type="button" class="tx-btn-ghost" :title="t('playlist.subscribeTitle')" @click="subscribe">{{ t('playlist.subscribe') }}</button>
         </span>
         <div class="flex items-center gap-2">
-          <button type="button" class="tx-btn-ghost" @click="ui.closePlaylist()">Cancel</button>
+          <button type="button" class="tx-btn-ghost" @click="ui.closePlaylist()">{{ t('common.cancel') }}</button>
           <button
             type="button"
             class="tx-btn-accent"
             :disabled="!chosenUrls.length"
             @click="addSelected"
           >
-            Add {{ chosenUrls.length }} video{{ chosenUrls.length === 1 ? '' : 's' }}
+            {{ chosenUrls.length === 1 ? t('playlist.addOne') : t('playlist.addMany', { n: chosenUrls.length }) }}
           </button>
         </div>
       </div>
@@ -143,19 +144,19 @@ async function subscribe(): Promise<void> {
 
     <!-- A single video that belongs to a playlist. -->
     <div v-else class="w-full max-w-md rounded-lg border border-tx-border bg-tx-panel p-4 shadow-2xl">
-      <h2 class="text-sm font-semibold">This video is part of a playlist</h2>
+      <h2 class="text-sm font-semibold">{{ t('playlist.partTitle') }}</h2>
       <p class="mt-1 text-[12px] leading-relaxed text-tx-muted">
-        Download this video only, or the entire playlist?
+        {{ t('playlist.partQuestion') }}
       </p>
       <div class="mt-4 flex items-center justify-end gap-2">
-        <button type="button" class="tx-btn-ghost" @click="ui.closePlaylist()">This video</button>
+        <button type="button" class="tx-btn-ghost" @click="ui.closePlaylist()">{{ t('playlist.thisVideo') }}</button>
         <button
           type="button"
           class="tx-btn-accent"
           :disabled="!media.playlistUrl"
           @click="entirePlaylist"
         >
-          Entire playlist
+          {{ t('playlist.entire') }}
         </button>
       </div>
     </div>

@@ -36,6 +36,7 @@ function migrate(s: Settings, from: number): Settings {
   if (from < 7) next.onQueueDone = next.onQueueDone ?? 'none'
   if (from < 9) next.videoCodec = next.videoCodec ?? 'auto'
   if (from < 10) next.rateLimitKbps = next.rateLimitKbps ?? 0
+  if (from < 11) next.language = next.language ?? 'auto'
   if (from < 8) {
     next.loginUsername = next.loginUsername ?? ''
     next.videoPassword = next.videoPassword ?? ''

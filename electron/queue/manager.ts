@@ -9,6 +9,7 @@ import { TuberDb } from '../db/database'
 import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
 import { convertVideo } from '../engine/transcode'
 import { updateEngine } from '../engine/updater'
+import { tm } from '../i18n'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -314,7 +315,7 @@ export class QueueManager extends EventEmitter {
     const settings = this.getSettings()
     const media = row.media!
     const format = media.formats.find((f) => f.id === row.formatId) ?? media.formats.find((f) => f.id === media.defaultFormatId)
-    if (!format) return void this.update(row.id, { status: 'failed', error: 'no format available' })
+    if (!format) return void this.update(row.id, { status: 'failed', error: tm('error.noFormat') })
 
     const force = this.redo.delete(row.id)
     const variants = { ...(row.downloadedVariants ?? {}) }

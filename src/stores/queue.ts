@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { DownloadProgress, QueueRow, RowStatus } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 /** Statuses that a "Download All" pass should pick up. */
 const STARTABLE: RowStatus[] = ['ready', 'failed']
@@ -21,8 +22,8 @@ export const useQueueStore = defineStore('queue', () => {
 
   const statusText = computed(() => {
     if (!count.value) return ''
-    const items = `${count.value} item${count.value === 1 ? '' : 's'}`
-    return activeCount.value ? `${items} · ${activeCount.value} downloading` : items
+    const items = count.value === 1 ? t('queue.itemsOne') : t('queue.itemsMany', { n: count.value })
+    return activeCount.value ? `${items} · ${t('queue.downloadingCount', { n: activeCount.value })}` : items
   })
 
   function byId(id: string): QueueRow | undefined {
@@ -75,12 +76,12 @@ export const useQueueStore = defineStore('queue', () => {
     if (!clean.length) return
     const res = await guard(() => window.tuberx.addUrls(clean, download))
     if (!res) return
-    if (res.added) ui.toast('success', `Added ${res.added} link${res.added === 1 ? '' : 's'}`)
+    if (res.added) ui.toast('success', res.added === 1 ? t('toast.addedOne') : t('toast.addedMany', { n: res.added }))
     if (res.duplicates.length) {
       const n = res.duplicates.length
-      ui.toast('info', `Skipped ${n} duplicate${n === 1 ? '' : 's'}`)
+      ui.toast('info', n === 1 ? t('toast.skippedDupOne') : t('toast.skippedDupMany', { n }))
     }
-    if (!res.added && !res.duplicates.length) ui.toast('warn', 'Nothing to add')
+    if (!res.added && !res.duplicates.length) ui.toast('warn', t('toast.nothingToAdd'))
     await refresh()
   }
 
@@ -118,7 +119,7 @@ export const useQueueStore = defineStore('queue', () => {
   async function startAll(): Promise<void> {
     const ids = startableRows.value.map((r) => r.id)
     if (!ids.length) {
-      ui.toast('info', 'Nothing ready to download')
+      ui.toast('info', t('toast.nothingReady'))
       return
     }
     await start(ids)

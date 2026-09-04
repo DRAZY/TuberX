@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/paths'
 import { useLaterStore } from '@/stores/later'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const later = useLaterStore()
 const queue = useQueueStore()
@@ -31,16 +32,16 @@ function exportLinks(): void {
 <template>
   <div class="flex h-full flex-col">
     <header class="flex shrink-0 items-center justify-between border-b border-tx-border px-4 py-3">
-      <h2 class="text-sm font-semibold">Download Later</h2>
-      <IconButton icon="close" label="Close" @click="ui.close()" />
+      <h2 class="text-sm font-semibold">{{ t('later.title') }}</h2>
+      <IconButton icon="close" :label="t('common.close')" @click="ui.close()" />
     </header>
 
     <div class="flex shrink-0 items-center justify-between gap-2 border-b border-tx-border px-4 py-2">
-      <span class="text-[11px] text-tx-muted">{{ later.count }} saved</span>
+      <span class="text-[11px] text-tx-muted">{{ t('later.saved', { n: later.count }) }}</span>
       <span class="flex items-center gap-2">
-        <button type="button" class="tx-btn-ghost" :disabled="!later.count" title="Save the links as a text file" @click="exportLinks">Export…</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!later.count" :title="t('later.exportTitle')" @click="exportLinks">{{ t('common.export') }}</button>
         <button type="button" class="tx-btn-ghost" :disabled="!later.count" @click="sendAll">
-          Send all to queue
+          {{ t('later.sendAll') }}
         </button>
       </span>
     </div>
@@ -50,7 +51,7 @@ function exportLinks(): void {
     </div>
 
     <p v-else-if="!later.count" class="px-4 py-8 text-center text-[11px] text-tx-muted">
-      Nothing saved yet. Links sent with the browser extension land here.
+      {{ t('later.empty') }}
     </p>
 
     <ul v-else class="min-h-0 flex-1 list-none overflow-y-auto">
@@ -71,7 +72,7 @@ function exportLinks(): void {
           <p class="mt-0.5 text-[10px] text-tx-muted">{{ formatDate(entry.addedAt) }}</p>
           <div class="mt-1 flex items-center gap-2">
             <button type="button" class="tx-btn-ghost !py-1" @click="sendOne(entry.id)">
-              Send to queue
+              {{ t('later.send') }}
             </button>
           </div>
         </div>
@@ -79,8 +80,8 @@ function exportLinks(): void {
         <button
           type="button"
           class="shrink-0 text-tx-muted opacity-0 hover:text-tx-text group-hover:opacity-100"
-          title="Remove"
-          aria-label="Remove"
+          :title="t('common.remove')"
+          :aria-label="t('common.remove')"
           @click="later.remove([entry.id])"
         >
           <Icon name="close" :size="13" />

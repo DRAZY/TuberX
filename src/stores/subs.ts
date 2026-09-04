@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Subscription } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 /** Playlists and channels the user follows: new videos are spotted on each check and fetched in one click. */
 export const useSubsStore = defineStore('subs', () => {
@@ -24,7 +25,7 @@ export const useSubsStore = defineStore('subs', () => {
   async function add(url: string): Promise<void> {
     const res = await guard(() => window.tuberx.subs.add(url))
     if (!res) return
-    ui.toast(res.added ? 'success' : 'info', res.added ? `Subscribed to ${res.title}` : 'Already subscribed')
+    ui.toast(res.added ? 'success' : 'info', res.added ? t('subs.subscribedTo', { title: res.title }) : t('subs.alreadySubscribed'))
   }
 
   async function remove(ids: string[]): Promise<void> {
@@ -36,13 +37,13 @@ export const useSubsStore = defineStore('subs', () => {
     targets.forEach((id) => checking.value.add(id))
     const res = await guard(() => window.tuberx.subs.check(targets))
     targets.forEach((id) => checking.value.delete(id))
-    if (res !== undefined) ui.toast(res ? 'success' : 'info', res ? `${res} new video${res === 1 ? '' : 's'}` : 'Nothing new')
+    if (res !== undefined) ui.toast(res ? 'success' : 'info', res ? (res === 1 ? t('subs.newOne') : t('subs.newMany', { n: res })) : t('subs.nothingNew'))
   }
 
   async function downloadNew(id: string): Promise<void> {
     const n = await guard(() => window.tuberx.subs.downloadNew(id))
     if (n === undefined) return
-    ui.toast(n ? 'success' : 'info', n ? `Added ${n} to the queue` : 'Already in the list, Later or History')
+    ui.toast(n ? 'success' : 'info', n ? t('subs.addedToQueue', { n }) : t('subs.alreadyListed'))
   }
 
   async function markSeen(id: string): Promise<void> {

@@ -18,6 +18,7 @@ import { engineLog } from '../queue/manager'
 import { fetchMetadata } from '../engine/ytdlp'
 import type { QueueManager } from '../queue/manager'
 import { getSettings, patchSettings } from '../settings'
+import { tm } from '../i18n'
 
 export function send<K extends keyof MainEvents>(event: K, payload: MainEvents[K]) {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send(event, payload)
@@ -25,23 +26,23 @@ export function send<K extends keyof MainEvents>(event: K, payload: MainEvents[K
 
 /** Open a finished file in its default application. */
 export async function openFile(path: string): Promise<void> {
-  if (!existsSync(path)) return send('toast', { kind: 'warn', message: 'That file is no longer there' })
+  if (!existsSync(path)) return send('toast', { kind: 'warn', message: tm('toast.fileGone') })
   const err = await shell.openPath(path)
   if (err) send('toast', { kind: 'error', message: err })
 }
 
 /** Windows shows its own "Open with" chooser; macOS has no such dialog, so an application picker stands in. */
 export async function openWith(path: string, win?: BrowserWindow): Promise<void> {
-  if (!existsSync(path)) return send('toast', { kind: 'warn', message: 'That file is no longer there' })
+  if (!existsSync(path)) return send('toast', { kind: 'warn', message: tm('toast.fileGone') })
   if (process.platform === 'win32') {
     spawn('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', path], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
     return
   }
   const res = await dialog.showOpenDialog(win!, {
-    title: 'Open with',
+    title: tm('dialog.openWith'),
     defaultPath: '/Applications',
     properties: ['openFile'],
-    filters: [{ name: 'Applications', extensions: ['app'] }],
+    filters: [{ name: tm('dialog.applications'), extensions: ['app'] }],
   })
   const appPath = res.filePaths[0]
   if (!appPath) return
@@ -93,8 +94,10 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
         kind: 'info',
         message:
           result.duplicates.length === urls.length
-            ? 'All of these links are already in the list'
-            : `${result.duplicates.length} link(s) were already in the list`,
+            ? tm('toast.allAlreadyInList')
+            : result.duplicates.length === 1
+              ? tm('toast.dupOne')
+              : tm('toast.dupMany', { n: result.duplicates.length }),
       })
     if (inLater.length && settings.skipIfExists) {
       // Adding to the queue from anywhere removes it from Later
@@ -122,11 +125,11 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   const pasteClipboard = (download: boolean) => {
     const urls = extractUrls(clipboard.readText())
     if (!urls.length) {
-      send('toast', { kind: 'info', message: 'No link on the clipboard' })
+      send('toast', { kind: 'info', message: tm('toast.noLinkClipboard') })
       return { found: 0, added: 0 }
     }
     const result = queue.add(urls, download)
-    if (result.duplicates.length === urls.length) send('toast', { kind: 'info', message: 'Already in the list' })
+    if (result.duplicates.length === urls.length) send('toast', { kind: 'info', message: tm('toast.alreadyInList') })
     return { found: urls.length, added: result.added }
   }
   ipcMain.handle('queue:pasteClipboard', (_e, download: boolean) => pasteClipboard(download))
@@ -151,33 +154,33 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
       const canStart = !!row.media && !row.media.isPlaylist && ['ready', 'failed', 'cancelled', 'skipped', 'done'].includes(row.status)
       const active = row.status === 'downloading' || row.status === 'converting' || row.status === 'queued'
       items.push(
-        { label: row.status === 'done' ? 'Download again' : row.status === 'paused' ? 'Resume' : 'Download', enabled: canStart, click: () => queue.start([row.id]) },
-        { label: 'Pause', enabled: active && row.status !== 'converting', click: () => queue.pause(row.id) },
-        { label: 'Stop', enabled: active || row.status === 'paused', click: () => queue.cancel(row.id) },
-        { label: 'Copy link', click: () => clipboard.writeText(row.media?.webpageUrl ?? row.url) },
-        { label: 'Open page in browser', click: () => void shell.openExternal(row.media?.webpageUrl ?? row.url) },
+        { label: row.status === 'done' ? tm('menu.downloadAgain') : row.status === 'paused' ? tm('menu.resume') : tm('menu.download'), enabled: canStart, click: () => queue.start([row.id]) },
+        { label: tm('menu.pause'), enabled: active && row.status !== 'converting', click: () => queue.pause(row.id) },
+        { label: tm('menu.stop'), enabled: active || row.status === 'paused', click: () => queue.cancel(row.id) },
+        { label: tm('menu.copyLink'), click: () => clipboard.writeText(row.media?.webpageUrl ?? row.url) },
+        { label: tm('menu.openPage'), click: () => void shell.openExternal(row.media?.webpageUrl ?? row.url) },
         { type: 'separator' },
-        { label: 'Open file', enabled: !!row.outputPath && row.status === 'done', click: () => void openFile(row.outputPath!) },
-        { label: 'Open with…', enabled: !!row.outputPath && row.status === 'done', click: () => void openWith(row.outputPath!, win) },
-        { label: 'Trim…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:trim', { rowId: row.id }) },
-        { label: 'Split by timecodes…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:split', { rowId: row.id }) },
-        { label: 'Rename…', enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:rename', { rowId: row.id }) },
-        { label: 'Reveal in folder', enabled: !!row.outputPath, click: () => shell.showItemInFolder(row.outputPath!) },
-        { label: 'Copy file path', enabled: !!row.outputPath, click: () => clipboard.writeText(row.outputPath!) },
-        { label: 'Reveal file', enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },
+        { label: tm('menu.openFile'), enabled: !!row.outputPath && row.status === 'done', click: () => void openFile(row.outputPath!) },
+        { label: tm('menu.openWith'), enabled: !!row.outputPath && row.status === 'done', click: () => void openWith(row.outputPath!, win) },
+        { label: tm('menu.trim'), enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:trim', { rowId: row.id }) },
+        { label: tm('menu.split'), enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:split', { rowId: row.id }) },
+        { label: tm('menu.rename'), enabled: !!row.outputPath && row.status === 'done', click: () => e.sender.send('ui:rename', { rowId: row.id }) },
+        { label: tm('menu.revealInFolder'), enabled: !!row.outputPath, click: () => shell.showItemInFolder(row.outputPath!) },
+        { label: tm('menu.copyPath'), enabled: !!row.outputPath, click: () => clipboard.writeText(row.outputPath!) },
+        { label: tm('menu.revealFile'), enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },
         { type: 'separator' },
-        { label: 'Remove from list', click: () => queue.remove([row.id]) },
+        { label: tm('menu.removeFromList'), click: () => queue.remove([row.id]) },
         { type: 'separator' },
       )
     }
     items.push(
-      { label: 'Paste link', enabled: hasLink, click: () => void pasteClipboard(false) },
-      { label: 'Paste link and download', enabled: hasLink, click: () => void pasteClipboard(true) },
+      { label: tm('menu.pasteLink'), enabled: hasLink, click: () => void pasteClipboard(false) },
+      { label: tm('menu.pasteLinkDownload'), enabled: hasLink, click: () => void pasteClipboard(true) },
       { type: 'separator' },
-      { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => e.sender.send('ui:selectAll', null) },
-      { label: 'Export queue as text…', enabled: queue.list().length > 0, click: () => e.sender.send('ui:export', 'queue') },
+      { label: tm('menu.selectAll'), accelerator: 'CmdOrCtrl+A', click: () => e.sender.send('ui:selectAll', null) },
+      { label: tm('menu.exportQueue'), enabled: queue.list().length > 0, click: () => e.sender.send('ui:export', 'queue') },
       { type: 'separator' },
-      { label: 'About TuberX', click: () => e.sender.send('ui:about', null) },
+      { label: tm('menu.about'), click: () => e.sender.send('ui:about', null) },
     )
     Menu.buildFromTemplate(items).popup({ window: win })
   })
@@ -207,7 +210,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('subs:list', () => db.listSubs())
   ipcMain.handle('subs:add', async (_e, url: string) => {
     const { media, entries } = await fetchEntries(url)
-    if (!media.isPlaylist) throw new Error('That link is a single video, not a playlist or channel.')
+    if (!media.isPlaylist) throw new Error(tm('subs.notPlaylist'))
     const sub: Subscription = {
       id: randomUUID(), url, title: media.playlistTitle || media.title || url, thumbnail: media.thumbnail,
       addedAt: Date.now(), lastChecked: Date.now(), total: entries.length, newUrls: [],
@@ -256,7 +259,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   const launchCheck = async () => {
     if (!db.listSubs().length) return
     const n = await checkSubs()
-    if (n) send('toast', { kind: 'info', message: `${n} new video${n === 1 ? '' : 's'} in your subscriptions` })
+    if (n) send('toast', { kind: 'info', message: n === 1 ? tm('toast.subsNewOne') : tm('toast.subsNewMany', { n }) })
   }
   setTimeout(() => void launchCheck(), 20_000)
   setInterval(() => void launchCheck(), 6 * 60 * 60 * 1000)
@@ -273,7 +276,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
         fresh.push(entry)
       }
     }
-    if (!added) send('toast', { kind: 'info', message: 'Already in your Download Later list' })
+    if (!added) send('toast', { kind: 'info', message: tm('toast.alreadyInLater') })
     else laterChanged()
     // Fill in titles in the background so the list is readable
     void (async () => {
@@ -322,12 +325,14 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     delete (patch as Partial<Settings>).hasLoginPassword // derived, never stored
     const next = patchSettings(patch)
     if (patch.destination) db.touchDestination(patch.destination)
-    return withDerived(next)
+    const out = withDerived(next)
+    send('settings:changed', out)
+    return out
   })
   ipcMain.handle('settings:pickDestination', async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const res = await dialog.showOpenDialog(win!, {
-      title: 'Choose download folder',
+      title: tm('dialog.chooseFolder'),
       defaultPath: getSettings().destination,
       properties: ['openDirectory', 'createDirectory'],
     })
@@ -341,8 +346,8 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('settings:pickCookiesFile', async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const res = await dialog.showOpenDialog(win!, {
-      title: 'Choose a cookies.txt (Netscape format)',
-      filters: [{ name: 'Cookies', extensions: ['txt'] }],
+      title: tm('dialog.chooseCookies'),
+      filters: [{ name: tm('dialog.cookiesFilter'), extensions: ['txt'] }],
       properties: ['openFile'],
     })
     if (res.canceled || !res.filePaths[0]) return null
@@ -411,7 +416,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     const changed: string[] = []
     for (const p of pairs) {
       if (!existsSync(p.from) || p.from === p.to) continue
-      if (existsSync(p.to)) throw new Error(`${basename(p.to)} already exists`)
+      if (existsSync(p.to)) throw new Error(tm('files.exists', { name: basename(p.to) }))
       renameSync(p.from, p.to)
       queue.setOutputPath(p.rowId, p.to)
       db.replaceHistoryPath(p.from, p.to)
@@ -426,18 +431,19 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
       : kind === 'later' ? db.listLater().map((l) => l.url)
       : db.listHistory().map((h) => `${h.url}\t${h.outputPath}`)
     if (!lines.length) {
-      send('toast', { kind: 'info', message: 'Nothing to export' })
+      send('toast', { kind: 'info', message: tm('toast.nothingToExport') })
       return null
     }
     const stamp = new Date().toISOString().slice(0, 10)
+    const kindName = tm(`export.${kind}`)
     const res = await dialog.showSaveDialog(win!, {
-      title: `Export ${kind}`,
-      defaultPath: join(app.getPath('documents'), `TuberX ${kind} ${stamp}.txt`),
-      filters: [{ name: 'Text', extensions: ['txt'] }],
+      title: tm('dialog.exportTitle', { kind: kindName }),
+      defaultPath: join(app.getPath('documents'), `TuberX ${kindName} ${stamp}.txt`),
+      filters: [{ name: tm('dialog.textFilter'), extensions: ['txt'] }],
     })
     if (res.canceled || !res.filePath) return null
     writeFileSync(res.filePath, lines.join('\n') + '\n', 'utf8')
-    send('toast', { kind: 'success', message: `Saved ${lines.length} link${lines.length === 1 ? '' : 's'}` })
+    send('toast', { kind: 'success', message: lines.length === 1 ? tm('toast.savedLinksOne') : tm('toast.savedLinksMany', { n: lines.length }) })
     return res.filePath
   })
   ipcMain.handle('shell:openExternal', (_e, url: string) => {

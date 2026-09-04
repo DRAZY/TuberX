@@ -1,5 +1,7 @@
 import type { FormatOption } from '@shared/types'
 import { heightLabel } from '@shared/normalize'
+import { t } from '@/lib/i18n'
+import type { MessageKey } from '@shared/i18n'
 
 /**
  * The fixed menu used where no probed media exists yet: the settings default and
@@ -8,12 +10,13 @@ import { heightLabel } from '@shared/normalize'
  */
 export interface PresetFormat {
   id: string
-  label: string
+  /** Message key of the label, or a literal when the label is a format name ("1080p", "MP3"). */
+  label: MessageKey | string
   group: 'Video' | 'Audio' | 'Other'
 }
 
 export const PRESET_FORMATS: PresetFormat[] = [
-  { id: 'v:best', label: 'Best video', group: 'Video' },
+  { id: 'v:best', label: 'format.bestVideo', group: 'Video' },
   { id: 'v:2160', label: '2160p (4K)', group: 'Video' },
   { id: 'v:1440', label: '1440p', group: 'Video' },
   { id: 'v:1080', label: '1080p', group: 'Video' },
@@ -22,13 +25,36 @@ export const PRESET_FORMATS: PresetFormat[] = [
   { id: 'v:360', label: '360p', group: 'Video' },
   { id: 'a:mp3', label: 'MP3', group: 'Audio' },
   { id: 'a:m4a', label: 'M4A', group: 'Audio' },
-  { id: 'a:wav', label: 'WAV (lossless)', group: 'Audio' },
-  { id: 'a:m4r', label: 'M4R ringtone', group: 'Audio' },
-  { id: 's:srt', label: 'Subtitles only', group: 'Other' },
+  { id: 'a:wav', label: 'format.wavLossless', group: 'Audio' },
+  { id: 'a:m4r', label: 'format.m4rRingtone', group: 'Audio' },
+  { id: 's:srt', label: 'format.subsOnly', group: 'Other' },
 ]
 
+const isKey = (label: string): label is MessageKey => label.startsWith('format.')
+
 export function presetLabel(id: string): string {
-  return PRESET_FORMATS.find((f) => f.id === id)?.label ?? id
+  const label = PRESET_FORMATS.find((f) => f.id === id)?.label
+  if (!label) return id
+  return isKey(label) ? t(label) : label
+}
+
+/** Labels the extractor produced for the fixed option ids, localized at render time; rung labels ("1080p MP4") pass through. */
+const PROBED_LABEL: Record<string, MessageKey> = {
+  'vo:best': 'format.videoOnly',
+  'a:mp3': 'format.mp3Audio',
+  'a:m4a': 'format.m4aAudio',
+  'a:wav': 'format.wavAudio',
+  'a:m4r': 'format.m4rFirst40',
+  's:srt': 'format.subsSrt',
+}
+export function formatLabel(f: FormatOption): string {
+  const key = PROBED_LABEL[f.id]
+  if (key) return t(key)
+  if (f.id === 'v:best') {
+    if (f.label === 'Best video (MP4)') return t('format.bestVideoMp4')
+    if (f.label.startsWith('Best · ')) return `${t('format.best')} · ${f.label.slice('Best · '.length)}`
+  }
+  return f.label
 }
 
 export function isAudio(kind: FormatOption['kind']): boolean {
@@ -76,10 +102,10 @@ export function qualityBadge(option: FormatOption | undefined, bestHeight?: numb
     case 'subs':
       return 'SRT'
     case 'video-only':
-      return 'Video'
+      return t('badge.video')
     case 'video': {
       const h = option.height ?? bestHeight
-      return h ? heightLabel(h) : 'Best'
+      return h ? heightLabel(h) : t('badge.best')
     }
   }
   return ''

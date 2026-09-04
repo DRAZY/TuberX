@@ -12,6 +12,7 @@ import { lookup } from 'node:dns/promises'
 import { QueueManager } from './queue/manager'
 import { registerMediaScheme, serveMedia } from './media'
 import { getSettings } from './settings'
+import { tm } from './i18n'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
 // A dev instance must never share settings, database or single-instance lock with an installed TuberX.
@@ -135,7 +136,7 @@ app.whenReady().then(async () => {
   queue = new QueueManager(db, getSettings)
   queue.on('completed', (row) => {
     if (getSettings().notifyOnComplete && Notification.isSupported()) {
-      const n = new Notification({ title: 'Download complete', body: row.media?.title ?? row.url })
+      const n = new Notification({ title: tm('notify.downloadComplete'), body: row.media?.title ?? row.url })
       n.on('click', () => row.outputPath && shell.showItemInFolder(row.outputPath))
       n.show()
     }
@@ -157,7 +158,7 @@ app.whenReady().then(async () => {
       const blocked = address === '0.0.0.0' || address === '::' || address === '127.0.0.1'
       setPotReachable(!blocked)
       if (blocked && getSettings().potHelper)
-        send('toast', { kind: 'warn', message: 'PO-token helper skipped: your network blocks jnn-pa.googleapis.com' })
+        send('toast', { kind: 'warn', message: tm('toast.potBlocked') })
     })
     .catch(() => setPotReachable(false))
 
@@ -166,7 +167,7 @@ app.whenReady().then(async () => {
     send('tools:status', status)
     const missing = status.filter((s) => !s.ok && (s.name === 'yt-dlp' || s.name === 'ffmpeg'))
     if (missing.length)
-      send('toast', { kind: 'error', message: `Missing tools: ${missing.map((m) => m.name).join(', ')} — see Settings → Engine` })
+      send('toast', { kind: 'error', message: tm('toast.missingTools', { names: missing.map((m) => m.name).join(', ') }) })
   })
   if (getSettings().autoUpdateEngine) {
     setTimeout(() => {

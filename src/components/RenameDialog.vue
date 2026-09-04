@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import Icon from '@/components/Icon.vue'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const props = defineProps<{ rowIds: string[] }>()
 const queue = useQueueStore()
@@ -51,7 +52,7 @@ async function apply(): Promise<void> {
   error.value = ''
   try {
     const done = await window.tuberx.files.rename(changes.value.map(({ rowId, from, to }) => ({ rowId, from, to })))
-    ui.toast('success', `Renamed ${done.length} file${done.length === 1 ? '' : 's'}`)
+    ui.toast('success', done.length === 1 ? t('rename.renamedOne') : t('rename.renamedMany', { n: done.length }))
     ui.close()
   } catch (e) {
     error.value = (e as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, '')
@@ -66,19 +67,19 @@ async function apply(): Promise<void> {
     <div class="flex w-full max-w-xl flex-col gap-3 rounded-lg border border-tx-border bg-tx-panel p-4 shadow-2xl">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <h2 class="text-sm font-semibold">Rename {{ rows.length === 1 ? 'file' : `${rows.length} files` }}</h2>
-          <p class="mt-0.5 text-[11px] text-tx-muted">Build the name from pieces; the list shows exactly what each file becomes. Select several rows first to rename a batch.</p>
+          <h2 class="text-sm font-semibold">{{ rows.length === 1 ? t('rename.titleOne') : t('rename.titleMany', { n: rows.length }) }}</h2>
+          <p class="mt-0.5 text-[11px] text-tx-muted">{{ t('rename.hint') }}</p>
         </div>
-        <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" aria-label="Close" @click="ui.close()"><Icon name="close" :size="16" /></button>
+        <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" :aria-label="t('common.close')" @click="ui.close()"><Icon name="close" :size="16" /></button>
       </div>
 
       <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-[12px]">
-        <label class="block">Prefix<input v-model="prefix" class="tx-field mt-1" placeholder="e.g. Lecture" /></label>
-        <label class="block">Suffix<input v-model="suffix" class="tx-field mt-1" placeholder="e.g. 1080p" /></label>
-        <label class="flex items-center gap-2"><input v-model="numbered" type="checkbox" class="accent-tx-accent" /> Number the files</label>
-        <label class="flex items-center gap-2">Start at<input v-model.number="startAt" type="number" min="0" class="tx-field w-20" :disabled="!numbered" /></label>
-        <label class="flex items-center gap-2"><input v-model="keepTitle" type="checkbox" class="accent-tx-accent" /> Keep the current name</label>
-        <label class="block"><input v-model="custom" class="tx-field" placeholder="Custom name instead" :disabled="keepTitle" /></label>
+        <label class="block">{{ t('rename.prefix') }}<input v-model="prefix" class="tx-field mt-1" :placeholder="t('rename.prefixPlaceholder')" /></label>
+        <label class="block">{{ t('rename.suffix') }}<input v-model="suffix" class="tx-field mt-1" :placeholder="t('rename.suffixPlaceholder')" /></label>
+        <label class="flex items-center gap-2"><input v-model="numbered" type="checkbox" class="accent-tx-accent" /> {{ t('rename.number') }}</label>
+        <label class="flex items-center gap-2">{{ t('rename.startAt') }}<input v-model.number="startAt" type="number" min="0" class="tx-field w-20" :disabled="!numbered" /></label>
+        <label class="flex items-center gap-2"><input v-model="keepTitle" type="checkbox" class="accent-tx-accent" /> {{ t('rename.keepName') }}</label>
+        <label class="block"><input v-model="custom" class="tx-field" :placeholder="t('rename.customPlaceholder')" :disabled="keepTitle" /></label>
       </div>
 
       <div class="max-h-40 overflow-y-auto rounded border border-tx-border">
@@ -91,8 +92,8 @@ async function apply(): Promise<void> {
 
       <p v-if="error" class="text-[12px] text-red-400">{{ error }}</p>
       <div class="flex items-center justify-end gap-2">
-        <button type="button" class="tx-btn-ghost" @click="ui.close()">Cancel</button>
-        <button type="button" class="tx-btn-accent" :disabled="!changes.length || busy" @click="apply">Rename {{ changes.length || '' }}</button>
+        <button type="button" class="tx-btn-ghost" @click="ui.close()">{{ t('common.cancel') }}</button>
+        <button type="button" class="tx-btn-accent" :disabled="!changes.length || busy" @click="apply">{{ changes.length ? t('rename.applyN', { n: changes.length }) : t('rename.apply') }}</button>
       </div>
     </div>
   </div>

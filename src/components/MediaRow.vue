@@ -10,6 +10,8 @@ import FormatSelect from '@/components/FormatSelect.vue'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
 import { useSettingsStore } from '@/stores/settings'
+import { t } from '@/lib/i18n'
+import type { MessageKey } from '@shared/i18n'
 
 const props = defineProps<{ row: QueueRow }>()
 
@@ -52,7 +54,7 @@ const upgradeHint = computed(() => {
   if (!opt || opt.kind !== 'video' || !opt.height) return ''
   const best = bestHeight.value
   if (!best || opt.height >= best) return ''
-  return `up to ${heightLabel(best)} available`
+  return t('row.upTo', { height: heightLabel(best) })
 })
 
 const busy = computed(
@@ -72,13 +74,13 @@ const progress = computed(() => props.row.progress)
 const percent = computed(() => Math.max(0, Math.min(100, progress.value?.percent ?? 0)))
 
 /** Post-processing passes, each a full rewrite of the file, named so a long one is not a mystery. */
-const STAGE_LABEL: Record<string, string> = {
-  merge: 'Merging video and audio',
-  convert: 'Converting',
-  subs: 'Embedding subtitles',
-  tag: 'Writing tags and chapters',
-  cover: 'Embedding cover art',
-  move: 'Moving to folder',
+const STAGE_KEY: Record<string, MessageKey> = {
+  merge: 'stage.merge',
+  convert: 'stage.convert',
+  subs: 'stage.subs',
+  tag: 'stage.tag',
+  cover: 'stage.cover',
+  move: 'stage.move',
 }
 const postProcessing = computed(() => !!progress.value && progress.value.stage !== 'download')
 
@@ -108,16 +110,16 @@ const progressLine = computed(() => {
   if (!p) return ''
   if (p.stage !== 'download') {
     const secs = Math.max(0, Math.round((now.value - stageSince.value) / 1000))
-    const label = STAGE_LABEL[p.stage] ?? 'Processing'
+    const label = t(STAGE_KEY[p.stage] ?? 'stage.processing')
     return secs >= 3 ? `${label} · ${secs} s` : label
   }
   const size = p.totalBytes ? `${formatBytes(p.downloadedBytes ?? 0)} / ${formatBytes(p.totalBytes)}` : ''
   const via = p.downloader === 'aria2c' ? 'aria2' : ''
-  const part = p.part && p.part.count > 1 ? `file ${p.part.index}/${p.part.count}` : ''
-  if (quietFor.value >= 8) return [`no data for ${quietFor.value} s`, size, part, via].filter(Boolean).join(' · ')
+  const part = p.part && p.part.count > 1 ? t('row.file', { index: p.part.index, count: p.part.count }) : ''
+  if (quietFor.value >= 8) return [t('row.noData', { n: quietFor.value }), size, part, via].filter(Boolean).join(' · ')
   const speed = p.speed ? `${formatBytes(p.speed)}/s` : ''
   const eta = formatEta(p.eta)
-  return [speed, eta && `${eta} left`, size, part, via].filter(Boolean).join(' · ')
+  return [speed, eta && t('row.left', { eta }), size, part, via].filter(Boolean).join(' · ')
 })
 
 const playlistCount = computed(() => media.value?.entries?.length ?? 0)
@@ -190,9 +192,9 @@ function openPlaylist(): void {
       <p
         v-if="status === 'failed'"
         class="mt-0.5 line-clamp-3 break-words text-[11px] leading-snug text-red-400"
-        :title="row.error ?? 'Download failed'"
+        :title="row.error ?? t('row.downloadFailed')"
       >
-        {{ row.error ?? 'Download failed' }}
+        {{ row.error ?? t('row.downloadFailed') }}
       </p>
 
       <div v-if="media" class="mt-1 flex flex-wrap items-center gap-1.5">
@@ -200,20 +202,20 @@ function openPlaylist(): void {
           v-if="media.playlistUrl || (media.isPlaylist && playlistCount)"
           type="button"
           class="flex items-center gap-1 rounded-full border border-tx-border px-1.5 py-px text-[10px] text-tx-muted hover:border-tx-accent hover:text-tx-text"
-          :title="media.isPlaylist ? 'Pick which videos to add' : 'Part of a playlist'"
+          :title="media.isPlaylist ? t('row.pickVideosTitle') : t('row.partOfPlaylist')"
           @click="openPlaylist"
         >
           <Icon name="playlist" :size="10" />
-          {{ media.isPlaylist ? `Playlist · ${playlistCount}` : 'Part of a playlist' }}
+          {{ media.isPlaylist ? t('row.playlistCount', { n: playlistCount }) : t('row.partOfPlaylist') }}
         </button>
 
         <span
           v-if="media.requiresLogin"
           class="flex items-center gap-1 rounded-full border border-amber-500/40 px-1.5 py-px text-[10px] text-amber-400"
-          title="This item needs cookies or a login — set one in Settings › Network"
+          :title="t('row.loginRequiredTitle')"
         >
           <Icon name="lock" :size="10" />
-          Login required
+          {{ t('row.loginRequired') }}
         </span>
       </div>
     </div>
@@ -222,7 +224,7 @@ function openPlaylist(): void {
     <div class="ml-auto flex w-[230px] shrink-0 flex-col items-end gap-1">
       <div class="flex w-full items-center justify-end gap-1.5">
         <button v-if="isPlaylistRow" type="button" class="tx-btn-accent" @click="openPlaylist">
-          Pick videos
+          {{ t('row.pickVideos') }}
         </button>
         <FormatSelect
           v-else
@@ -237,8 +239,8 @@ function openPlaylist(): void {
         <button
           type="button"
           class="shrink-0 text-tx-muted opacity-0 transition-opacity hover:text-tx-text group-hover:opacity-100"
-          title="Remove from list"
-          aria-label="Remove from list"
+          :title="t('row.removeFromList')"
+          :aria-label="t('row.removeFromList')"
           @click="queue.remove([row.id])"
         >
           <Icon name="close" :size="14" />
@@ -253,7 +255,7 @@ function openPlaylist(): void {
           v-if="upgradeHint"
           type="button"
           class="truncate hover:text-tx-text"
-          title="Switch this row to the best available quality"
+          :title="t('row.switchBest')"
           @click="chooseBest"
         >
           ↑ {{ upgradeHint }}
@@ -268,20 +270,20 @@ function openPlaylist(): void {
       >
         <template v-if="status === 'fetching'">
           <Spinner />
-          <span class="text-[11px] text-tx-muted">Fetching…</span>
+          <span class="text-[11px] text-tx-muted">{{ t('status.fetching') }}</span>
         </template>
 
         <template v-else-if="status === 'ready'">
-          <button type="button" class="tx-btn-accent" @click="queue.start([row.id])">Download</button>
+          <button type="button" class="tx-btn-accent" @click="queue.start([row.id])">{{ t('row.download') }}</button>
         </template>
 
         <template v-else-if="status === 'queued'">
-          <span class="text-[11px] text-tx-muted">Queued</span>
+          <span class="text-[11px] text-tx-muted">{{ t('status.queued') }}</span>
           <button
             type="button"
             class="text-tx-muted hover:text-tx-text"
-            title="Cancel"
-            aria-label="Cancel"
+            :title="t('common.cancel')"
+            :aria-label="t('common.cancel')"
             @click="queue.cancel(row.id)"
           >
             <Icon name="close" :size="14" />
@@ -306,8 +308,8 @@ function openPlaylist(): void {
             v-if="progress?.stage === 'download'"
             type="button"
             class="shrink-0 text-tx-muted hover:text-tx-text"
-            title="Pause (keeps what has been downloaded)"
-            aria-label="Pause"
+            :title="t('row.pauseTitle')"
+            :aria-label="t('row.pause')"
             @click="queue.pause(row.id)"
           >
             <Icon name="pause" :size="14" />
@@ -315,8 +317,8 @@ function openPlaylist(): void {
           <button
             type="button"
             class="shrink-0 text-tx-muted hover:text-red-400"
-            title="Stop and discard (pick another format, then Download)"
-            aria-label="Stop"
+            :title="t('row.stopTitle')"
+            :aria-label="t('row.stop')"
             @click="queue.cancel(row.id)"
           >
             <Icon name="stop" :size="14" />
@@ -328,16 +330,16 @@ function openPlaylist(): void {
             <div class="h-1.5 w-full overflow-hidden rounded-full bg-tx-border">
               <div class="h-full rounded-full bg-tx-accent/50" :style="{ width: `${percent}%` }" />
             </div>
-            <div class="mt-1 text-[10px] text-tx-muted">Paused at {{ percent.toFixed(0) }}%</div>
+            <div class="mt-1 text-[10px] text-tx-muted">{{ t('row.pausedAt', { percent: percent.toFixed(0) }) }}</div>
           </div>
           <button type="button" class="tx-btn-accent flex items-center gap-1" @click="queue.resume(row.id)">
-            <Icon name="play" :size="12" /> Resume
+            <Icon name="play" :size="12" /> {{ t('row.resume') }}
           </button>
           <button
             type="button"
             class="shrink-0 text-tx-muted hover:text-red-400"
-            title="Stop and discard"
-            aria-label="Stop"
+            :title="t('row.stopDiscard')"
+            :aria-label="t('row.stop')"
             @click="queue.cancel(row.id)"
           >
             <Icon name="stop" :size="14" />
@@ -352,14 +354,14 @@ function openPlaylist(): void {
             :disabled="!row.outputPath"
             @click="queue.reveal(row.outputPath ?? '')"
           >
-            Reveal
+            {{ t('common.reveal') }}
           </button>
           <button
             v-if="row.outputPath && !isAudioOutput"
             type="button"
             class="shrink-0 text-tx-muted hover:text-tx-text"
-            title="Trim: pick an in and out point and export the clip"
-            aria-label="Trim"
+            :title="t('row.trimTitle')"
+            :aria-label="t('row.trim')"
             @click="ui.openTrim(row.id)"
           >
             <Icon name="scissors" :size="14" />
@@ -367,8 +369,8 @@ function openPlaylist(): void {
           <button
             type="button"
             class="shrink-0 text-tx-muted hover:text-tx-text"
-            title="Download again (pick another format first to get a second copy; the file you have stays)"
-            aria-label="Download again"
+            :title="t('row.downloadAgainTitle')"
+            :aria-label="t('row.downloadAgain')"
             @click="queue.start([row.id])"
           >
             <Icon name="redo" :size="14" />
@@ -376,17 +378,17 @@ function openPlaylist(): void {
         </template>
 
         <template v-else-if="status === 'failed'">
-          <button type="button" class="tx-btn-ghost" @click="queue.retry(row.id)">Retry</button>
+          <button type="button" class="tx-btn-ghost" @click="queue.retry(row.id)">{{ t('common.retry') }}</button>
         </template>
 
         <template v-else-if="status === 'cancelled'">
-          <span class="text-[11px] text-tx-muted">Cancelled</span>
-          <button type="button" class="tx-btn-ghost" @click="queue.retry(row.id)">Retry</button>
+          <span class="text-[11px] text-tx-muted">{{ t('status.cancelled') }}</span>
+          <button type="button" class="tx-btn-ghost" @click="queue.retry(row.id)">{{ t('common.retry') }}</button>
         </template>
 
         <template v-else-if="status === 'skipped'">
-          <span class="text-[11px] text-tx-muted" title="A file with this name already exists">
-            Already downloaded
+          <span class="text-[11px] text-tx-muted" :title="t('row.alreadyDownloadedTitle')">
+            {{ t('row.alreadyDownloaded') }}
           </span>
         </template>
       </div>
