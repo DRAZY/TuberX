@@ -49,8 +49,9 @@ onBeforeUnmount(() => window.removeEventListener('focus', readClipboard))
 </script>
 
 <template>
+  <!-- Compact: the add strip plus, when a link is on the clipboard, the suggestion strip. Otherwise the empty state. -->
+  <template v-if="compact">
   <button
-    v-if="compact"
     type="button"
     class="flex w-full shrink-0 items-center gap-2 border-b border-tx-border px-4 py-2 text-xs text-tx-muted transition-colors hover:bg-tx-row hover:text-tx-text"
     :class="ui.dragging ? 'bg-tx-row text-tx-text' : ''"
@@ -60,7 +61,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', readClipboard))
     {{ t('drop.pasteMore') }}
   </button>
   <div
-    v-if="compact && suggestion"
+    v-if="suggestion"
     class="flex w-full shrink-0 items-center gap-2 border-b border-tx-border bg-tx-panel px-4 py-1.5 text-xs"
   >
     <Icon name="search" :size="13" class="shrink-0 text-tx-muted" />
@@ -71,6 +72,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', readClipboard))
       <Icon name="close" :size="12" />
     </button>
   </div>
+  </template>
 
   <div
     v-else
