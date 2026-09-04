@@ -201,6 +201,8 @@ export interface Settings {
   /** Browser identity yt-dlp presents; phones sometimes get formats or pages desktops do not. */
   userAgent: 'default' | 'desktop' | 'ios' | 'android'
   autoUpdateEngine: boolean
+  /** Check GitHub Releases for a new TuberX build at launch and every six hours. */
+  autoCheckUpdates: boolean
   /** UI language: 'auto' follows the system locale, otherwise one of the shipped locales. */
   language: 'auto' | Locale
   /** Bumped when a default changes in a way existing installs should adopt. */
@@ -239,8 +241,9 @@ export const DEFAULT_SETTINGS: Settings = {
   videoPassword: '',
   userAgent: 'default',
   autoUpdateEngine: true,
+  autoCheckUpdates: true,
   language: 'auto',
-  settingsVersion: 12,
+  settingsVersion: 13,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -256,6 +259,7 @@ export interface MainEvents {
   /** The full settings after any change made through settings:set, so every window (and the UI language) follows at once. */
   'settings:changed': Settings
   'engine:updated': { from?: string; to: string }
+  'update:status': UpdateStatus
   'url:incoming': { url: string; later: boolean }
   'ui:selectAll': null
   'ui:about': null
@@ -269,6 +273,20 @@ export interface MainEvents {
   /** A sleep or shutdown is about to happen; the renderer shows the countdown with a Cancel. `seconds` 0 = cancelled. */
   'power:countdown': { action: 'sleep' | 'shutdown'; seconds: number }
   'toast': { kind: ToastKind; message: string }
+}
+
+/** App-update state pushed to the renderer. */
+export interface UpdateStatus {
+  state: 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error'
+  current: string
+  latest?: string
+  url?: string
+  publishedAt?: string
+  notes?: string
+  /** 0–100 while downloading an in-place update */
+  progress?: number
+  checkedAt?: number
+  error?: string
 }
 
 /** What the About section shows: the build the user is running and where it comes from. */
@@ -346,6 +364,14 @@ export interface TuberXApi {
   }
   app: {
     info(): Promise<AppInfo>
+  }
+  update: {
+    status(): Promise<UpdateStatus>
+    check(): Promise<UpdateStatus>
+    /** Download and apply on the Windows installer build; opens the release page elsewhere. */
+    install(): Promise<void>
+    /** True when the update can be applied in place (Windows installer build). */
+    canInstall(): Promise<boolean>
   }
   power: {
     /** Stop a pending sleep or shutdown. */

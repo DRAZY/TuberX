@@ -48,6 +48,7 @@ function migrate(s: Settings, from: number): Settings {
     next.potHelper = legacy === true ? 'auto' : legacy === false ? 'off' : (legacy as Settings['potHelper']) ?? 'auto'
     next.engineMode = next.engineMode ?? 'fast'
   }
+  if (from < 13) next.autoCheckUpdates = next.autoCheckUpdates ?? true
   next.settingsVersion = DEFAULT_SETTINGS.settingsVersion
   store.set('settings', next)
   return next

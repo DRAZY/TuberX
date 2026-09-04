@@ -11,6 +11,7 @@ import { setPotReachable } from './engine/ytdlp'
 import { lookup } from 'node:dns/promises'
 import { QueueManager } from './queue/manager'
 import { registerMediaScheme, serveMedia } from './media'
+import { scheduleUpdateChecks } from './appUpdate'
 import { getSettings } from './settings'
 import { tm } from './i18n'
 
@@ -149,6 +150,7 @@ app.whenReady().then(async () => {
   })
   registerIpc(queue, db)
   createWindow()
+  scheduleUpdateChecks()
   handleArgv(process.argv)
 
   // The PO-token helper needs jnn-pa.googleapis.com; DNS filters often sinkhole it. Detect once, skip it,

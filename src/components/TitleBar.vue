@@ -10,6 +10,7 @@ const subs = useSubsStore()
 void subs.ensureLoaded()
 const ui = useUiStore()
 const settings = useSettingsStore()
+void settings.loadUpdate()
 
 function disableProxy(): void {
   void settings.update({ proxyEnabled: false })
@@ -50,12 +51,15 @@ function disableProxy(): void {
         <IconButton icon="rss" :label="t('titlebar.subscriptions')" :active="ui.panel === 'subs'" @click="ui.toggle('subs')" />
         <span v-if="subs.newCount" class="pointer-events-none absolute -right-0.5 -top-0.5 min-w-[14px] rounded-full bg-tx-accent px-1 text-center text-[9px] font-semibold leading-[14px] text-white">{{ subs.newCount }}</span>
       </span>
-      <IconButton
-        icon="settings"
-        :label="t('titlebar.settings')"
-        :active="ui.panel === 'settings'"
-        @click="ui.toggle('settings')"
-      />
+      <span class="relative">
+        <IconButton
+          icon="settings"
+          :label="t('titlebar.settings')"
+          :active="ui.panel === 'settings'"
+          @click="ui.toggle('settings')"
+        />
+        <span v-if="settings.appUpdate.state === 'available' || settings.appUpdate.state === 'ready'" class="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-tx-accent" :title="t('update.badge', { version: settings.appUpdate.latest ?? '' })" />
+      </span>
     </div>
   </header>
 </template>

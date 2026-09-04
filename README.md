@@ -75,7 +75,7 @@ YouTube (videos, Shorts, playlists, channels), Vimeo, Facebook, Instagram, Daily
 - **Windows 10/11 (x64):** run `TuberX-Setup-<version>-x64.exe`, or use `TuberX-Portable-<version>-x64.exe` with no install. The portable build is self-extracting, so allow it a moment on launch while it expands. Both keep settings, history and logs in `%APPDATA%\TuberX`.
 - **macOS (Apple silicon):** open the `.dmg` and drag TuberX to Applications.
 
-Installed copies are offered new versions on launch.
+TuberX checks GitHub Releases for a new version at launch and every six hours, and says so in the title bar and under Settings → About. The Windows installer build downloads and applies the update in place; the portable exe and the Mac build open the release page for the new file. Nothing installs without you, and the check can be turned off.
 
 ### macOS: first launch
 

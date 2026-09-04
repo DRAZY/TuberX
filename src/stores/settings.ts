@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { DEFAULT_SETTINGS, type AppInfo, type Settings, type ToolStatus } from '@shared/types'
+import { DEFAULT_SETTINGS, type AppInfo, type Settings, type ToolStatus, type UpdateStatus } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
 import { useUiStore } from '@/stores/ui'
 import { setLocale, t } from '@/lib/i18n'
@@ -10,6 +10,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
   const tools = ref<ToolStatus[]>([])
   const appInfo = ref<AppInfo | null>(null)
+  const appUpdate = ref<UpdateStatus>({ state: 'idle', current: '' })
+  const canInstall = ref(false)
   const loaded = ref(false)
   const engineUpdating = ref(false)
   const engineResult = ref('')
@@ -46,6 +48,20 @@ export const useSettingsStore = defineStore('settings', () => {
     const next = await guard(() => window.tuberx.tools.status())
     if (next) tools.value = next
   }
+
+  async function loadUpdate(): Promise<void> {
+    const [s, c] = await Promise.all([guard(() => window.tuberx.update.status()), guard(() => window.tuberx.update.canInstall())])
+    if (s) appUpdate.value = s
+    if (c !== undefined) canInstall.value = c
+  }
+  async function checkUpdate(): Promise<void> {
+    const s = await guard(() => window.tuberx.update.check())
+    if (s) appUpdate.value = s
+  }
+  async function installUpdate(): Promise<void> {
+    await guard(() => window.tuberx.update.install())
+  }
+  listen('update:status', (s) => (appUpdate.value = s))
 
   async function setLoginPassword(password: string): Promise<void> {
     const next = await guard(() => window.tuberx.settings.setLoginPassword(password))
@@ -95,6 +111,11 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     appInfo,
     loadAppInfo,
+    appUpdate,
+    canInstall,
+    loadUpdate,
+    checkUpdate,
+    installUpdate,
     setLoginPassword,
     settings,
     tools,

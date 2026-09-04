@@ -53,6 +53,12 @@ const api: TuberXApi = {
   app: {
     info: () => invoke('app:info'),
   },
+  update: {
+    status: () => invoke('update:status'),
+    check: () => invoke('update:check'),
+    install: () => invoke('update:install'),
+    canInstall: () => invoke('update:canInstall'),
+  },
   power: {
     cancel: () => invoke('power:cancel'),
   },

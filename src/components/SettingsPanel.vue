@@ -27,6 +27,7 @@ async function scrollToAnchor(): Promise<void> {
 }
 onMounted(() => {
   void store.loadAppInfo()
+  void store.loadUpdate()
   void scrollToAnchor()
 })
 watch(() => ui.anchor, () => void scrollToAnchor())
@@ -535,6 +536,7 @@ function commitProxy(): void {
             <div class="flex items-baseline gap-2">
               <span class="text-[14px] font-semibold text-tx-text">TuberX</span>
               <span class="font-mono text-[11px] text-tx-muted">{{ store.appInfo ? `v${store.appInfo.version}` : '…' }}</span>
+              <span v-if="store.appUpdate.state === 'available' || store.appUpdate.state === 'ready' || store.appUpdate.state === 'downloading'" class="rounded bg-tx-accent px-1.5 py-px text-[10px] font-semibold text-white">{{ t('update.badge', { version: store.appUpdate.latest ?? '' }) }}</span>
             </div>
             <p class="mt-1 text-[11px] leading-snug text-tx-muted">
               {{ t('settings.about.blurb') }}
@@ -551,6 +553,30 @@ function commitProxy(): void {
           <button type="button" class="tx-btn-ghost" @click="openLogs()">{{ t('settings.engine.openLogs') }}</button>
           <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.licenses)">{{ t('settings.about.licenses') }}</button>
         </div>
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+          <template v-if="store.appUpdate.state === 'available'">
+            <span class="text-tx-text">{{ t('update.available', { version: store.appUpdate.latest ?? '' }) }}</span>
+            <button type="button" class="tx-btn-accent !py-0.5 text-xs" @click="store.installUpdate()">{{ store.canInstall ? t('update.install') : t('update.download') }}</button>
+          </template>
+          <template v-else-if="store.appUpdate.state === 'downloading'">
+            <span class="text-tx-muted">{{ t('update.downloading', { percent: store.appUpdate.progress ?? 0 }) }}</span>
+          </template>
+          <template v-else-if="store.appUpdate.state === 'ready'">
+            <span class="text-tx-text">{{ t('update.ready', { version: store.appUpdate.latest ?? '' }) }}</span>
+            <button type="button" class="tx-btn-accent !py-0.5 text-xs" @click="store.installUpdate()">{{ t('update.restart') }}</button>
+          </template>
+          <template v-else>
+            <span class="text-tx-muted">{{ store.appUpdate.state === 'checking' ? t('update.checking') : store.appUpdate.state === 'none' ? t('update.upToDate') : store.appUpdate.state === 'error' ? t('update.failed') : '' }}</span>
+            <button type="button" class="tx-btn-ghost !py-0.5" :disabled="store.appUpdate.state === 'checking'" @click="store.checkUpdate()">{{ t('update.checkNow') }}</button>
+          </template>
+        </div>
+        <Toggle
+          class="mt-2"
+          :model-value="store.settings.autoCheckUpdates"
+          :label="t('update.auto')"
+          :hint="t('update.autoHint')"
+          @update:model-value="set('autoCheckUpdates', $event)"
+        />
         <p class="mt-3 text-[10px] leading-snug text-tx-muted">
           {{ t('settings.about.footer') }}
         </p>

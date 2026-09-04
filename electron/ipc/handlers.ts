@@ -11,6 +11,7 @@ import type { TuberDb } from '../db/database'
 import { checkAllTools } from '../engine/tools'
 import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
+import { canInstallInPlace, checkForUpdate, installUpdate, updateStatus } from '../appUpdate'
 import { bestEncoder } from '../engine/encoders'
 import { exportSegment, splitByMarks, writeChapters } from '../engine/transcode'
 import { mediaUrl } from '../media'
@@ -184,6 +185,12 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     )
     Menu.buildFromTemplate(items).popup({ window: win })
   })
+
+  // ---- app updates ----
+  ipcMain.handle('update:status', () => updateStatus())
+  ipcMain.handle('update:check', () => checkForUpdate(true))
+  ipcMain.handle('update:install', () => installUpdate())
+  ipcMain.handle('update:canInstall', () => canInstallInPlace)
 
   // ---- about ----
   ipcMain.handle('app:info', (): AppInfo => ({
