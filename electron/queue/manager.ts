@@ -8,6 +8,7 @@ import { urlKey } from '../../shared/urls'
 import { TuberDb } from '../db/database'
 import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
 import { convertVideo } from '../engine/transcode'
+import { updateEngine } from '../engine/updater'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -27,6 +28,32 @@ export class QueueManager extends EventEmitter {
   private pausing = new Set<string>()
   /** Rows the user explicitly asked to download again: skip the "already in history" shortcut once. */
   private redo = new Set<string>()
+  private lastHeal = 0
+  /**
+   * An extractor failure usually means the site changed and yt-dlp already ships the fix. Update the
+   * engine right away (at most once an hour) and tell the caller to retry once. Errors that an update
+   * cannot fix (private, removed, geo-blocked, login) never trigger it.
+   */
+  private async selfHeal(message: string, rowId: string): Promise<boolean> {
+    if (!this.getSettings().autoUpdateEngine) return false
+    if (/404|410|Not Found|Gone|private|removed|unavailable/i.test(message)) return false // nothing an update fixes
+    if (!/Unable to extract|Unsupported URL|nsig|signature|failed to parse|Precondition check failed|Requested format is not available|JSON metadata|Unable to download (webpage|API page)|HTTP Error 4(00|10)|Incomplete data received/i.test(message)) return false
+    if (Date.now() - this.lastHeal < 60 * 60 * 1000) return false
+    this.lastHeal = Date.now()
+    engineLog(rowId, 'self-heal: extractor error, checking for a newer yt-dlp before giving up')
+    try {
+      const r = await updateEngine((m) => engineLog(rowId, `self-heal: ${m}`))
+      if (r.updated) {
+        this.emit('engineUpdated', r.version)
+        return true
+      }
+      engineLog(rowId, `self-heal: yt-dlp ${r.version} is already current`)
+    } catch (e) {
+      engineLog(rowId, `self-heal: update failed: ${(e as Error).message}`)
+    }
+    return false
+  }
+
   /** Rows to start the moment their metadata resolves (paste-and-download, clipboard strip). */
   private autoStart = new Set<string>()
   private active = 0
@@ -128,6 +155,7 @@ export class QueueManager extends EventEmitter {
     const ac = new AbortController()
     this.aborters.set(id, ac)
     this.update(id, { status: 'fetching', error: undefined })
+    let retry = false
     try {
       const media: MediaItem = await fetchMetadata(row.url, this.getSettings(), { signal: ac.signal })
       const formatId = pickFormat(media, row.formatId)
@@ -135,10 +163,13 @@ export class QueueManager extends EventEmitter {
       if (this.autoStart.delete(id) && !media.isPlaylist) this.start([id])
     } catch (e) {
       if (ac.signal.aborted) return
-      this.update(id, { status: 'failed', error: (e as Error).message })
+      const msg = (e as Error).message
+      if (await this.selfHeal(msg, id)) retry = true
+      else this.update(id, { status: 'failed', error: msg })
     } finally {
       this.aborters.delete(id)
     }
+    if (retry) await this.fetch(id)
   }
 
   remove(ids: string[]) {
@@ -382,6 +413,8 @@ export class QueueManager extends EventEmitter {
           cleanupPartials(media.title, row.destination || settings.destination)
           this.update(row.id, { status: 'ready', progress: undefined, error: undefined })
         }
+      } else if (await this.selfHeal(msg, row.id)) {
+        this.update(row.id, { status: 'queued', error: undefined, progress: undefined }) // the engine changed underneath; one more go
       } else this.update(row.id, { status: 'failed', error: msg, progress: undefined })
     } finally {
       this.aborters.delete(row.id)

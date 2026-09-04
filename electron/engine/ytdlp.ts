@@ -336,6 +336,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     // console output must stay on for those lines to appear.
     const aria2Args = ['-c', '-x', '16', '-s', '16', '-k', '1M', '--min-split-size=1M', '--file-allocation=none', '--max-tries=5', '--retry-wait=2', '--auto-save-interval=10', '--summary-interval=1']
     if (process.env.TUBERX_ARIA2_LIMIT) aria2Args.push(`--max-overall-download-limit=${process.env.TUBERX_ARIA2_LIMIT}`) // dev/test throttle
+    if (settings.rateLimitKbps > 0) aria2Args.push(`--max-overall-download-limit=${settings.rateLimitKbps}K`)
     args.push(
       '--downloader', aria2,
       // HLS/DASH fragment streams (Vimeo, Dailymotion …) stay on yt-dlp's native downloader:
@@ -345,6 +346,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     )
   }
 
+  if (settings.rateLimitKbps > 0) args.push('--limit-rate', `${settings.rateLimitKbps}K`) // native downloader and fragment streams
   if (job.media.extraArgs?.length) args.push(...job.media.extraArgs)
   // Media URLs from the fetch stay valid for hours; reuse them so the download starts immediately.
   const infoFresh =

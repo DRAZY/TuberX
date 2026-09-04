@@ -50,6 +50,7 @@ const BROWSERS: { value: Settings['cookiesFromBrowser']; label: string }[] = [
 const langs = ref(store.settings.subtitleLangs.join(', '))
 const proxy = ref(store.settings.proxy)
 const loginUsername = ref(store.settings.loginUsername)
+const rateLimit = ref(store.settings.rateLimitKbps)
 const encoders = ref<{ h264: string | null; h265: string | null }>({ h264: null, h265: null })
 onMounted(() => {
   void guard(() => window.tuberx.tools.encoders()).then((e) => e && (encoders.value = e))
@@ -283,6 +284,10 @@ function commitProxy(): void {
           label="Skip if the file already exists"
           @update:model-value="set('skipIfExists', $event)"
         />
+        <label class="mt-2 block text-[12px]">
+          Speed limit (KB/s, 0 = none)
+          <input v-model.number="rateLimit" class="tx-field mt-1 w-32" type="number" min="0" step="100" @change="set('rateLimitKbps', Math.max(0, Math.round(rateLimit || 0)))" />
+        </label>
         <label class="mt-2 block text-[12px]">
           When the queue finishes
           <select

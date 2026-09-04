@@ -35,6 +35,7 @@ function migrate(s: Settings, from: number): Settings {
   if (from < 5 && next.mp3Bitrate === 192) next.mp3Bitrate = 320 // old default → new default; explicit other choices stay
   if (from < 7) next.onQueueDone = next.onQueueDone ?? 'none'
   if (from < 9) next.videoCodec = next.videoCodec ?? 'auto'
+  if (from < 10) next.rateLimitKbps = next.rateLimitKbps ?? 0
   if (from < 8) {
     next.loginUsername = next.loginUsername ?? ''
     next.videoPassword = next.videoPassword ?? ''

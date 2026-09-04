@@ -140,6 +140,7 @@ app.whenReady().then(async () => {
       n.show()
     }
   })
+  queue.on('engineUpdated', (version: string) => send('engine:updated', { to: version }))
   queue.on('idle', (row) => {
     const action = getSettings().onQueueDone
     if (action === 'open-folder') void shell.openPath(row.destination || getSettings().destination)

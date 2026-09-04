@@ -49,7 +49,7 @@ function when(ts?: number): string {
           <div class="min-w-0 flex-1">
             <p class="truncate text-[13px] text-tx-text" :title="s.url">{{ s.title || s.url }}</p>
             <p class="mt-0.5 text-[11px] text-tx-muted">
-              {{ s.total }} videos · {{ when(s.lastChecked) }}
+              {{ s.total }} video{{ s.total === 1 ? '' : 's' }} · {{ when(s.lastChecked) }}
               <span v-if="s.newUrls.length" class="ml-1 rounded bg-tx-accent px-1.5 py-px text-[10px] font-semibold text-white">{{ s.newUrls.length }} new</span>
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-2">

@@ -182,6 +182,8 @@ export interface Settings {
   /** Run the bundled bgutil PO-token helper for YouTube (avoids "Sign in to confirm you're not a bot") */
   potHelper: boolean
   useAria2: boolean
+  /** Download speed cap in KB/s for the whole app; 0 means no limit. */
+  rateLimitKbps: number
   concurrentDownloads: 1 | 2 | 3 | 4 | 5 | 6 | 8
   notifyOnComplete: boolean
   /** What happens once the last download in the queue finishes. */
@@ -221,6 +223,7 @@ export const DEFAULT_SETTINGS: Settings = {
   forceIpv4: true,
   potHelper: true,
   useAria2: true,
+  rateLimitKbps: 0,
   concurrentDownloads: 3,
   notifyOnComplete: true,
   onQueueDone: 'none',
@@ -229,7 +232,7 @@ export const DEFAULT_SETTINGS: Settings = {
   videoPassword: '',
   userAgent: 'default',
   autoUpdateEngine: true,
-  settingsVersion: 9,
+  settingsVersion: 10,
 }
 
 /** Events the main process pushes to the renderer. */
