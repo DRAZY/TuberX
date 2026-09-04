@@ -3,6 +3,7 @@ import { potDir, resolveTool, TOOL_NAMES, type ToolName } from './paths'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { run } from './run'
+import { tm } from '../i18n'
 
 const VERSION_ARGS: Record<Exclude<ToolName, 'pot-helper'>, string[]> = {
   'yt-dlp': ['--version'],
@@ -27,12 +28,12 @@ function parseVersion(name: Exclude<ToolName, 'pot-helper'>, out: string): strin
 
 export async function checkTool(name: Exclude<ToolName, 'pot-helper'>): Promise<ToolStatus> {
   const path = resolveTool(name)
-  if (!path) return { name, path: '', ok: false, error: 'not found' }
+  if (!path) return { name, path: '', ok: false, error: tm('tool.notFound') }
   try {
     const { done } = run(path, VERSION_ARGS[name], { timeoutMs: name === 'yt-dlp' ? 90000 : 15000 })
     const res = await done
     const version = parseVersion(name, res.stdout || res.stderr)
-    return { name, path, version, ok: res.code === 0 && !!version, error: res.code === 0 ? undefined : `exit ${res.code}` }
+    return { name, path, version, ok: res.code === 0 && !!version, error: res.code === 0 ? undefined : tm('error.exitCode', { code: res.code ?? '?' }) }
   } catch (e) {
     return { name, path, ok: false, error: (e as Error).message }
   }
@@ -42,6 +43,6 @@ export async function checkAllTools(): Promise<ToolStatus[]> {
   const tools = await Promise.all(TOOL_NAMES.map(checkTool))
   const pot = potDir()
   const ok = !!pot && existsSync(join(pot, 'plugins', 'bgutil-ytdlp-pot-provider.zip')) && existsSync(join(pot, 'server', 'node_modules', 'canvas'))
-  tools.push({ name: 'pot-helper', path: pot ?? '', version: ok ? 'bgutil 1.3.2' : undefined, ok, error: ok ? undefined : 'not bundled' })
+  tools.push({ name: 'pot-helper', path: pot ?? '', version: ok ? 'bgutil 1.3.2' : undefined, ok, error: ok ? undefined : tm('tool.notBundled') })
   return tools
 }

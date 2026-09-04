@@ -2,6 +2,7 @@
 import type { ToastKind } from '@shared/types'
 import Icon from '@/components/Icon.vue'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const ui = useUiStore()
 
@@ -22,18 +23,18 @@ const TONE: Record<ToastKind, string> = {
       leave-to-class="opacity-0"
     >
       <div
-        v-for="t in ui.toasts"
-        :key="t.id"
+        v-for="toast in ui.toasts"
+        :key="toast.id"
         class="pointer-events-auto flex max-w-md items-start gap-2 rounded-2xl border bg-tx-panel/95 px-3 py-2 text-[11px] leading-snug shadow-lg backdrop-blur"
-        :class="TONE[t.kind]"
+        :class="TONE[toast.kind]"
       >
-        <span class="min-w-0 break-words">{{ t.message }}</span>
+        <span class="min-w-0 break-words">{{ toast.message }}</span>
         <button
           type="button"
           class="shrink-0 opacity-60 hover:opacity-100"
-          title="Dismiss"
-          aria-label="Dismiss"
-          @click="ui.dismiss(t.id)"
+          :title="t('common.dismiss')"
+          :aria-label="t('common.dismiss')"
+          @click="ui.dismiss(toast.id)"
         >
           <Icon name="close" :size="11" />
         </button>

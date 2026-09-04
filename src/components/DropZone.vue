@@ -4,6 +4,7 @@ import Icon from '@/components/Icon.vue'
 import { extractUrls } from '@shared/urls'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const props = withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 
@@ -56,17 +57,17 @@ onBeforeUnmount(() => window.removeEventListener('focus', readClipboard))
     @click="ui.open('multilink')"
   >
     <Icon name="plus" :size="14" />
-    Paste or drop more links
+    {{ t('drop.pasteMore') }}
   </button>
   <div
     v-if="compact && suggestion"
     class="flex w-full shrink-0 items-center gap-2 border-b border-tx-border bg-tx-panel px-4 py-1.5 text-xs"
   >
     <Icon name="search" :size="13" class="shrink-0 text-tx-muted" />
-    <span class="min-w-0 flex-1 truncate text-tx-muted" :title="suggestion">On the clipboard: {{ suggestion }}</span>
-    <button type="button" class="tx-btn-ghost !py-0.5" @click="acceptSuggestion(false)">Add</button>
-    <button type="button" class="tx-btn-accent !py-0.5 text-xs" @click="acceptSuggestion(true)">Add and download</button>
-    <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" aria-label="Dismiss" title="Not this one" @click="dismissSuggestion">
+    <span class="min-w-0 flex-1 truncate text-tx-muted" :title="suggestion">{{ t('drop.onClipboard', { url: suggestion }) }}</span>
+    <button type="button" class="tx-btn-ghost !py-0.5" @click="acceptSuggestion(false)">{{ t('drop.add') }}</button>
+    <button type="button" class="tx-btn-accent !py-0.5 text-xs" @click="acceptSuggestion(true)">{{ t('drop.addAndDownload') }}</button>
+    <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" :aria-label="t('common.dismiss')" :title="t('drop.notThisOne')" @click="dismissSuggestion">
       <Icon name="close" :size="12" />
     </button>
   </div>
@@ -80,18 +81,17 @@ onBeforeUnmount(() => window.removeEventListener('focus', readClipboard))
       <button
         type="button"
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-tx-border text-tx-muted transition-colors hover:border-tx-accent hover:text-tx-accent"
-        title="Add links (Ctrl+O)"
-        aria-label="Add links"
+        :title="t('drop.addLinksShortcut')"
+        :aria-label="t('drop.addLinks')"
         @click="ui.open('multilink')"
       >
         <Icon name="plus" :size="18" />
       </button>
-      <h1 class="text-left text-2xl font-light text-tx-muted">Paste or Drop Video URLs Here</h1>
+      <h1 class="text-left text-2xl font-light text-tx-muted">{{ t('drop.heading') }}</h1>
     </div>
 
     <p class="mt-4 max-w-md text-xs leading-relaxed text-tx-muted">
-      Supports YouTube, Vimeo, Facebook, Instagram, Dailymotion, SoundCloud, Mixcloud, Bandcamp,
-      Youku and more
+      {{ t('drop.supports') }}
     </p>
 
     <button

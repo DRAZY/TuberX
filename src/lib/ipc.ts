@@ -1,12 +1,13 @@
 import type { MainEvents } from '@shared/types'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 /** Best-effort human message out of anything a rejected IPC promise can carry. */
 export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
   if (typeof e === 'string') return e
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message)
-  return 'Something went wrong'
+  return t('error.generic')
 }
 
 /**

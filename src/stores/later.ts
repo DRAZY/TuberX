@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { LaterEntry } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 export const useLaterStore = defineStore('later', () => {
   const ui = useUiStore()
@@ -32,7 +33,7 @@ export const useLaterStore = defineStore('later', () => {
     if (!clean.length) return
     const n = await guard(() => window.tuberx.later.add(clean))
     if (n === undefined) return
-    ui.toast(n ? 'success' : 'info', n ? `Saved ${n} for later` : 'Already saved')
+    ui.toast(n ? 'success' : 'info', n ? t('later.savedForLater', { n }) : t('later.alreadySaved'))
   }
 
   async function remove(ids: string[]): Promise<void> {

@@ -3,6 +3,10 @@ import { dirname, extname, join, basename } from 'node:path'
 import { run, type RunResult } from './run'
 import { resolveTool } from './paths'
 import { bestEncoder, encoderArgs, type Codec } from './encoders'
+import { tm } from '../i18n'
+
+/** The last stderr line, or the exit code when ffmpeg said nothing. */
+const lastLine = (res: RunResult): string => res.stderr.trim().split('\n').pop() ?? tm('error.exitCode', { code: res.code ?? '?' })
 
 export interface StreamInfo {
   vcodec?: string
@@ -46,11 +50,11 @@ export interface TranscodeOptions {
  */
 export async function convertVideo(path: string, codec: Codec, opts: TranscodeOptions): Promise<string | null> {
   const ffmpeg = resolveTool('ffmpeg')
-  if (!ffmpeg) throw new Error('ffmpeg is not installed. Open Settings → Engine.')
+  if (!ffmpeg) throw new Error(tm('error.ffmpegMissing'))
   const info = await inspect(path)
   if (info.vcodec && CODEC_NAMES[codec].includes(info.vcodec)) return null
   const choice = await bestEncoder(codec)
-  if (!choice) throw new Error(`No ${codec === 'h264' ? 'H.264' : 'H.265'} encoder is available in the bundled ffmpeg.`)
+  if (!choice) throw new Error(tm('error.noEncoder', { codec: codec === 'h264' ? 'H.264' : 'H.265' }))
   const tmp = join(dirname(path), `${basename(path, extname(path))}.converting${extname(path) || '.mp4'}`)
   // Only the first video stream is encoded; audio, subtitles and the cover image are copied through,
   // so the encoder never sees the attached picture (which made it fail with "Invalid argument").
@@ -81,7 +85,7 @@ export async function convertVideo(path: string, codec: Codec, opts: TranscodeOp
   if (opts.signal?.aborted || res.code !== 0) {
     rmSync(tmp, { force: true })
     if (opts.signal?.aborted) throw new Error('cancelled')
-    throw new Error(`Conversion failed (${choice.label}): ${res.stderr.trim().split('\n').pop() ?? `exit ${res.code}`}`)
+    throw new Error(tm('error.conversionFailed', { encoder: choice.label, detail: lastLine(res) }))
   }
   rmSync(path, { force: true })
   renameSync(tmp, path)
@@ -125,11 +129,11 @@ export function segmentPath(src: string, start: number, end: number, ext: string
 /** Cut [start, end) of `src` into a new file beside it. Returns the output path. */
 export async function exportSegment(job: SegmentJob): Promise<string> {
   const ffmpeg = resolveTool('ffmpeg')
-  if (!ffmpeg) throw new Error('ffmpeg is not installed. Open Settings → Engine.')
+  if (!ffmpeg) throw new Error(tm('error.ffmpegMissing'))
   const info = await inspect(job.src)
   const start = Math.max(0, job.start)
   const end = job.kind === 'm4r' ? Math.min(job.end, start + 40) : job.end
-  if (end <= start) throw new Error('The out point must come after the in point.')
+  if (end <= start) throw new Error(tm('error.outBeforeIn'))
   const out = segmentPath(job.src, start, end, job.kind)
   const tmp = out + '.part'
   const length = end - start
@@ -160,7 +164,7 @@ export async function exportSegment(job: SegmentJob): Promise<string> {
   if (job.signal?.aborted || res.code !== 0) {
     rmSync(tmp, { force: true })
     if (job.signal?.aborted) throw new Error('cancelled')
-    throw new Error(`Export failed: ${res.stderr.trim().split('\n').pop() ?? `exit ${res.code}`}`)
+    throw new Error(tm('error.exportFailed', { detail: lastLine(res) }))
   }
   renameSync(tmp, out)
   job.onProgress(100)
@@ -178,12 +182,12 @@ const safeName = (t: string) => t.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g,
 /** Cut `src` at the marks into numbered clips beside it ("<stem> - 01 Title.mp4"). Stream copy: instant, keyframe-aligned. */
 export async function splitByMarks(src: string, marks: Mark[], opts: TranscodeOptions): Promise<string[]> {
   const ffmpeg = resolveTool('ffmpeg')
-  if (!ffmpeg) throw new Error('ffmpeg is not installed. Open Settings → Engine.')
+  if (!ffmpeg) throw new Error(tm('error.ffmpegMissing'))
   const info = await inspect(src)
   const total = info.duration ?? 0
   const sorted = [...marks].filter((m) => m.start >= 0 && (!total || m.start < total)).sort((a, b) => a.start - b.start)
-  if (!sorted.length) throw new Error('No timecodes found.')
-  if (sorted[0].start > 0.5) sorted.unshift({ start: 0, title: 'Start' })
+  if (!sorted.length) throw new Error(tm('error.noTimecodes'))
+  if (sorted[0].start > 0.5) sorted.unshift({ start: 0, title: tm('split.startTitle') })
   const ext = extname(src).replace('.', '') || 'mp4'
   const audioOnly = !info.vcodec || /mjpeg|png/.test(info.vcodec)
   const dir = dirname(src)
@@ -194,7 +198,7 @@ export async function splitByMarks(src: string, marks: Mark[], opts: TranscodeOp
     if (opts.signal?.aborted) throw new Error('cancelled')
     const start = sorted[i].start
     const end = i + 1 < sorted.length ? sorted[i + 1].start : total || undefined
-    let out = join(dir, `${stem} - ${String(i + 1).padStart(width, '0')} ${safeName(sorted[i].title) || 'Part'}.${ext}`)
+    let out = join(dir, `${stem} - ${String(i + 1).padStart(width, '0')} ${safeName(sorted[i].title) || tm('split.partTitle')}.${ext}`)
     for (let n = 2; existsSync(out); n++) out = out.replace(/(\.[^.]+)$/, ` (${n})$1`)
     const args = ['-hide_banner', '-y', '-loglevel', 'error', '-nostats', '-ss', String(start), '-i', src]
     if (end !== undefined) args.push('-t', String(Math.max(0.1, end - start)))
@@ -204,7 +208,7 @@ export async function splitByMarks(src: string, marks: Mark[], opts: TranscodeOp
     opts.onLog?.(`split ${i + 1}/${sorted.length}: ${basename(out)}`)
     const res = await run(ffmpeg, args, { signal: opts.signal, idleTimeoutMs: 10 * 60 * 1000 }).done
     if (opts.signal?.aborted) throw new Error('cancelled')
-    if (res.code !== 0) throw new Error(`Split failed on part ${i + 1}: ${res.stderr.trim().split('\n').pop() ?? `exit ${res.code}`}`)
+    if (res.code !== 0) throw new Error(tm('error.splitFailed', { n: i + 1, detail: lastLine(res) }))
     outputs.push(out)
     opts.onProgress(((i + 1) / sorted.length) * 100)
   }
@@ -214,16 +218,16 @@ export async function splitByMarks(src: string, marks: Mark[], opts: TranscodeOp
 /** Write the marks into `src` as chapter metadata, in place (a remux, no re-encode). */
 export async function writeChapters(src: string, marks: Mark[], opts: TranscodeOptions): Promise<void> {
   const ffmpeg = resolveTool('ffmpeg')
-  if (!ffmpeg) throw new Error('ffmpeg is not installed. Open Settings → Engine.')
+  if (!ffmpeg) throw new Error(tm('error.ffmpegMissing'))
   const info = await inspect(src)
   const total = info.duration ?? 0
   const sorted = [...marks].filter((m) => m.start >= 0 && (!total || m.start < total)).sort((a, b) => a.start - b.start)
-  if (!sorted.length) throw new Error('No timecodes found.')
+  if (!sorted.length) throw new Error(tm('error.noTimecodes'))
   const esc = (t: string) => t.replace(/([=;#\\\n])/g, '\\$1')
   const lines = [';FFMETADATA1']
   for (let i = 0; i < sorted.length; i++) {
     const end = i + 1 < sorted.length ? sorted[i + 1].start : total || sorted[i].start + 1
-    lines.push('[CHAPTER]', 'TIMEBASE=1/1000', `START=${Math.round(sorted[i].start * 1000)}`, `END=${Math.round(end * 1000)}`, `title=${esc(sorted[i].title || `Chapter ${i + 1}`)}`)
+    lines.push('[CHAPTER]', 'TIMEBASE=1/1000', `START=${Math.round(sorted[i].start * 1000)}`, `END=${Math.round(end * 1000)}`, `title=${esc(sorted[i].title || tm('split.chapterN', { n: i + 1 }))}`)
   }
   const meta = src + '.chapters.txt'
   const tmp = src + '.chapters' + (extname(src) || '.mp4')
@@ -236,7 +240,7 @@ export async function writeChapters(src: string, marks: Mark[], opts: TranscodeO
     if (opts.signal?.aborted || res.code !== 0) {
       rmSync(tmp, { force: true })
       if (opts.signal?.aborted) throw new Error('cancelled')
-      throw new Error(`Writing chapters failed: ${res.stderr.trim().split('\n').pop() ?? `exit ${res.code}`}`)
+      throw new Error(tm('error.chaptersFailed', { detail: lastLine(res) }))
     }
     rmSync(src, { force: true })
     renameSync(tmp, src)

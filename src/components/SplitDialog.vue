@@ -5,6 +5,7 @@ import Icon from '@/components/Icon.vue'
 import { listen } from '@/lib/ipc'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const props = defineProps<{ rowId: string }>()
 const queue = useQueueStore()
@@ -44,7 +45,7 @@ async function run(mode: 'clips' | 'chapters'): Promise<void> {
   error.value = ''
   try {
     outputs.value = await window.tuberx.trim.split({ src: src.value, marks: marks.value, mode })
-    ui.toast('success', mode === 'clips' ? `Saved ${outputs.value.length} clips` : 'Chapters written')
+    ui.toast('success', mode === 'clips' ? (outputs.value.length === 1 ? t('split.savedClipOne') : t('split.savedClips', { n: outputs.value.length })) : t('split.chaptersWritten'))
   } catch (e) {
     const msg = (e as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, '')
     if (!/cancelled/.test(msg)) error.value = msg
@@ -68,26 +69,26 @@ onBeforeUnmount(() => unbinds.forEach((u) => u()))
     <div class="flex w-full max-w-xl flex-col gap-3 rounded-lg border border-tx-border bg-tx-panel p-4 shadow-2xl">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <h2 class="truncate text-sm font-semibold">Split by timecodes · {{ row?.media?.title ?? 'file' }}</h2>
+          <h2 class="truncate text-sm font-semibold">{{ t('split.title', { title: row?.media?.title ?? t('common.file') }) }}</h2>
           <p class="mt-0.5 text-[11px] text-tx-muted">
-            One line per part: a time and a title. Paste a tracklist from the description, or keep the chapters found in the video.
+            {{ t('split.hint') }}
           </p>
         </div>
-        <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" aria-label="Close" @click="close"><Icon name="close" :size="16" /></button>
+        <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" :aria-label="t('common.close')" @click="close"><Icon name="close" :size="16" /></button>
       </div>
 
-      <textarea v-model="text" rows="9" spellcheck="false" placeholder="0:00 Intro&#10;1:23 First song&#10;4:56 Second song" class="tx-field resize-none font-mono text-[11px] leading-relaxed" />
+      <textarea v-model="text" rows="9" spellcheck="false" :placeholder="t('split.placeholder')" class="tx-field resize-none font-mono text-[11px] leading-relaxed" />
 
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-tx-muted">
-        <span>{{ marks.length }} part{{ marks.length === 1 ? '' : 's' }} detected</span>
-        <span v-for="m in marks.slice(0, 6)" :key="m.start" class="rounded border border-tx-border px-1.5 py-0.5">{{ formatDuration(m.start) }} {{ m.title || '(untitled)' }}</span>
+        <span>{{ marks.length === 1 ? t('split.partsOne') : t('split.partsMany', { n: marks.length }) }}</span>
+        <span v-for="m in marks.slice(0, 6)" :key="m.start" class="rounded border border-tx-border px-1.5 py-0.5">{{ formatDuration(m.start) }} {{ m.title || t('split.untitled') }}</span>
         <span v-if="marks.length > 6">…</span>
       </div>
 
       <div v-if="busy" class="flex items-center gap-3 text-[12px]">
         <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-tx-border"><div class="h-full bg-tx-accent transition-[width]" :style="{ width: `${percent}%` }" /></div>
         <span class="w-10 text-right font-mono text-tx-muted">{{ Math.round(percent) }}%</span>
-        <button type="button" class="tx-btn-ghost" @click="cancel">Cancel</button>
+        <button type="button" class="tx-btn-ghost" @click="cancel">{{ t('common.cancel') }}</button>
       </div>
       <p v-else-if="error" class="text-[12px] text-red-400">{{ error }}</p>
       <div v-else-if="outputs.length" class="max-h-28 overflow-y-auto text-[11px] text-tx-muted">
@@ -95,8 +96,8 @@ onBeforeUnmount(() => unbinds.forEach((u) => u()))
       </div>
 
       <div class="flex flex-wrap items-center justify-end gap-2">
-        <button type="button" class="tx-btn-ghost" :disabled="!marks.length || !!busy" title="Adds the parts as chapters inside this file; nothing is re-encoded" @click="run('chapters')">Write as chapters</button>
-        <button type="button" class="tx-btn-accent" :disabled="!marks.length || !!busy" title="One file per part, beside the original" @click="run('clips')">Split into {{ marks.length || '' }} clips</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!marks.length || !!busy" :title="t('split.writeChaptersTitle')" @click="run('chapters')">{{ t('split.writeChapters') }}</button>
+        <button type="button" class="tx-btn-accent" :disabled="!marks.length || !!busy" :title="t('split.clipsTitle')" @click="run('clips')">{{ marks.length ? t('split.intoClips', { n: marks.length }) : t('split.intoClipsNone') }}</button>
       </div>
     </div>
   </div>

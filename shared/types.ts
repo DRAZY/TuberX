@@ -2,6 +2,7 @@
  * Shared contract between the Electron main process and the Vue renderer.
  * The renderer never sees yt-dlp or ffmpeg directly; it only sees these types.
  */
+import type { Locale } from './i18n'
 
 export type OutputKind = 'video' | 'video-only' | 'mp3' | 'm4a' | 'wav' | 'm4r' | 'subs'
 
@@ -197,6 +198,8 @@ export interface Settings {
   /** Browser identity yt-dlp presents; phones sometimes get formats or pages desktops do not. */
   userAgent: 'default' | 'desktop' | 'ios' | 'android'
   autoUpdateEngine: boolean
+  /** UI language: 'auto' follows the system locale, otherwise one of the shipped locales. */
+  language: 'auto' | Locale
   /** Bumped when a default changes in a way existing installs should adopt. */
   settingsVersion: number
 }
@@ -232,7 +235,8 @@ export const DEFAULT_SETTINGS: Settings = {
   videoPassword: '',
   userAgent: 'default',
   autoUpdateEngine: true,
-  settingsVersion: 10,
+  language: 'auto',
+  settingsVersion: 11,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -245,6 +249,8 @@ export interface MainEvents {
   'history:changed': HistoryEntry[]
   'row:progress': { id: string; progress: DownloadProgress }
   'tools:status': ToolStatus[]
+  /** The full settings after any change made through settings:set, so every window (and the UI language) follows at once. */
+  'settings:changed': Settings
   'engine:updated': { from?: string; to: string }
   'url:incoming': { url: string; later: boolean }
   'ui:selectAll': null

@@ -5,6 +5,7 @@ import Icon from '@/components/Icon.vue'
 import { guard, listen } from '@/lib/ipc'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
+import { t } from '@/lib/i18n'
 
 const props = defineProps<{ rowId: string }>()
 const queue = useQueueStore()
@@ -90,7 +91,7 @@ async function exportAs(kind: 'mp4' | 'm4a' | 'm4r'): Promise<void> {
   try {
     const out = await window.tuberx.trim.export({ src: src.value, start: inPoint.value, end: outPoint.value, kind, precise: precise.value })
     result.value = out
-    ui.toast('success', `Saved ${out.split(/[\\/]/).pop()}`)
+    ui.toast('success', t('trim.saved', { name: out.split(/[\\/]/).pop() ?? out }))
   } catch (e) {
     const msg = (e as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, '')
     if (!/cancelled/.test(msg)) error.value = msg
@@ -120,10 +121,10 @@ watch(inPoint, (v) => v > current.value && seek(v))
     <div class="flex w-full max-w-2xl flex-col gap-3 rounded-lg border border-tx-border bg-tx-panel p-4 shadow-2xl">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <h2 class="truncate text-sm font-semibold">Trim · {{ row?.media?.title ?? 'file' }}</h2>
-          <p class="mt-0.5 text-[11px] text-tx-muted">Set an in and out point, then export the clip beside the original. The original is never changed.</p>
+          <h2 class="truncate text-sm font-semibold">{{ t('trim.title', { title: row?.media?.title ?? t('common.file') }) }}</h2>
+          <p class="mt-0.5 text-[11px] text-tx-muted">{{ t('trim.hint') }}</p>
         </div>
-        <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" aria-label="Close" @click="close"><Icon name="close" :size="16" /></button>
+        <button type="button" class="shrink-0 text-tx-muted hover:text-tx-text" :aria-label="t('common.close')" @click="close"><Icon name="close" :size="16" /></button>
       </div>
 
       <video
@@ -146,13 +147,13 @@ watch(inPoint, (v) => v > current.value && seek(v))
       </div>
 
       <div class="flex flex-wrap items-center gap-2 text-[12px]">
-        <button type="button" class="tx-btn-ghost" :disabled="!duration" @click="setIn">Set in</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!duration" @click="setIn">{{ t('trim.setIn') }}</button>
         <input class="tx-field w-24 text-center font-mono" :value="fmt(inPoint)" @change="editIn" />
-        <span class="text-tx-muted">to</span>
+        <span class="text-tx-muted">{{ t('trim.to') }}</span>
         <input class="tx-field w-24 text-center font-mono" :value="fmt(outPoint)" @change="editOut" />
-        <button type="button" class="tx-btn-ghost" :disabled="!duration" @click="setOut">Set out</button>
-        <span class="text-tx-muted">· {{ fmt(length) }} long</span>
-        <button type="button" class="tx-btn-ghost ml-auto flex items-center gap-1" :disabled="!valid" @click="playSelection"><Icon name="play" :size="12" /> Play selection</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!duration" @click="setOut">{{ t('trim.setOut') }}</button>
+        <span class="text-tx-muted">{{ t('trim.long', { length: fmt(length) }) }}</span>
+        <button type="button" class="tx-btn-ghost ml-auto flex items-center gap-1" :disabled="!valid" @click="playSelection"><Icon name="play" :size="12" /> {{ t('trim.playSelection') }}</button>
       </div>
 
       <div v-if="chapters.length" class="flex flex-wrap gap-1.5">
@@ -170,24 +171,24 @@ watch(inPoint, (v) => v > current.value && seek(v))
 
       <label class="flex items-center gap-2 text-[11px] text-tx-muted">
         <input v-model="precise" type="checkbox" class="accent-tx-accent" />
-        Frame-accurate cut (re-encodes the video; instant cuts land on the nearest keyframe, up to a few seconds early)
+        {{ t('trim.precise') }}
       </label>
 
       <div v-if="busy" class="flex items-center gap-3 text-[12px]">
         <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-tx-border"><div class="h-full bg-tx-accent transition-[width]" :style="{ width: `${percent}%` }" /></div>
         <span class="w-10 text-right font-mono text-tx-muted">{{ Math.round(percent) }}%</span>
-        <button type="button" class="tx-btn-ghost" @click="cancelExport">Cancel</button>
+        <button type="button" class="tx-btn-ghost" @click="cancelExport">{{ t('common.cancel') }}</button>
       </div>
       <p v-else-if="error" class="text-[12px] text-red-400">{{ error }}</p>
       <p v-else-if="result" class="flex items-center gap-2 text-[12px] text-tx-muted">
         <Icon name="check" :size="13" class="text-emerald-400" /><span class="truncate">{{ result }}</span>
-        <button type="button" class="tx-btn-ghost" @click="queue.reveal(result)">Reveal</button>
+        <button type="button" class="tx-btn-ghost" @click="queue.reveal(result)">{{ t('common.reveal') }}</button>
       </p>
 
       <div class="flex flex-wrap items-center justify-end gap-2">
-        <button type="button" class="tx-btn-ghost" :disabled="!valid || !!busy" @click="exportAs('m4r')">Ringtone (M4R, first 40 s)</button>
-        <button type="button" class="tx-btn-ghost" :disabled="!valid || !!busy" @click="exportAs('m4a')">Audio (M4A)</button>
-        <button type="button" class="tx-btn-accent" :disabled="!valid || !!busy" @click="exportAs('mp4')">Export clip (MP4)</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!valid || !!busy" @click="exportAs('m4r')">{{ t('trim.ringtone') }}</button>
+        <button type="button" class="tx-btn-ghost" :disabled="!valid || !!busy" @click="exportAs('m4a')">{{ t('trim.audio') }}</button>
+        <button type="button" class="tx-btn-accent" :disabled="!valid || !!busy" @click="exportAs('mp4')">{{ t('trim.exportClip') }}</button>
       </div>
     </div>
   </div>

@@ -11,6 +11,7 @@ import { basename } from 'node:path'
 import { run } from './run'
 import { app } from 'electron'
 import { getSecret } from '../secrets'
+import { tm } from '../i18n'
 import { cpus } from 'node:os'
 import { spawn } from 'node:child_process'
 
@@ -22,7 +23,7 @@ export function setPotReachable(v: boolean): void {
 
 function must(name: 'yt-dlp'): string {
   const p = resolveTool(name)
-  if (!p) throw new Error(`${name} is not installed. Open Settings → Engine.`)
+  if (!p) throw new Error(tm('error.notInstalled', { name }))
   return p
 }
 
@@ -129,7 +130,7 @@ function parseJson(stdout: string, url: string): MediaItem {
   try {
     json = JSON.parse(stdout) as YtDlpJson
   } catch {
-    throw new Error('yt-dlp returned unreadable metadata')
+    throw new Error(tm('error.unreadableMetadata'))
   }
   const media = normalizeMedia(json, url)
   // Keep the raw info so the download can start from it (--load-info-json) instead of extracting again.
@@ -150,16 +151,16 @@ function parseJson(stdout: string, url: string): MediaItem {
 
 export function friendlyError(stderr: string): string {
   const lines = stderr.split(/\r?\n/).filter((l) => l.trim())
-  const err = [...lines].reverse().find((l) => /ERROR/.test(l)) ?? lines[lines.length - 1] ?? 'unknown error'
+  const err = [...lines].reverse().find((l) => /ERROR/.test(l)) ?? lines[lines.length - 1] ?? tm('error.unknown')
   let msg = err.replace(/^ERROR:\s*/, '').replace(/^\[[^\]]+\]\s*[\w-]+:\s*/, '')
   if (/confirm you.re not a bot/i.test(msg))
-    return 'YouTube asked for a sign-in check (bot detection). TuberX already retried over IPv4 with the token helper; wait a minute and retry. If it keeps happening, Settings › Network has cookie options as a last resort.'
+    return tm('error.botCheck')
   if (/private video|members-only|sign in to confirm your age|age-restricted|requires login|login required/i.test(msg))
-    msg = `${msg}. This video needs a login: Settings › Network › Cookies from browser`
-  else if (/sign in|login|cookies/i.test(msg)) msg = `${msg}. If this persists, Settings › Network has cookie options`
-  if (/not available in your country|geo/i.test(msg)) msg = `${msg} — try a proxy in Settings → Network`
-  if (/unsupported url/i.test(msg)) msg = 'This site or link type is not supported'
-  if (/DRM protected/i.test(msg)) msg = 'This video is DRM-protected by the site and cannot be downloaded'
+    msg = tm('error.needsLogin', { msg })
+  else if (/sign in|login|cookies/i.test(msg)) msg = tm('error.loginHint', { msg })
+  if (/not available in your country|geo/i.test(msg)) msg = tm('error.geo', { msg })
+  if (/unsupported url/i.test(msg)) msg = tm('error.unsupported')
+  if (/DRM protected/i.test(msg)) msg = tm('error.drm')
   return msg.length > 220 ? msg.slice(0, 217) + '…' : msg
 }
 
@@ -458,11 +459,8 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   if (res.stalled) {
     const stage = STAGE_NAME[lastStage] ?? lastStage
     job.onLog?.(`watchdog: no output while ${stage}; process tree killed${res.orphaned ? ' (parent had to be force-killed)' : ''}`)
-    if (lastStage === 'download')
-      throw new Error(`Stalled while downloading: the transfer went silent three times in a row. The site may be throttling or cutting the stream; try again in a few minutes, or turn aria2c off in Settings → Downloads.`)
-    throw new Error(
-      `Stalled while ${stage}: no progress for 10 minutes, so TuberX stopped it. Antivirus or OneDrive holding the file is the usual cause on Windows. Retry, or choose a destination folder outside OneDrive.`,
-    )
+    if (lastStage === 'download') throw new Error(tm('error.stalledDownload'))
+    throw new Error(tm('error.stalledStage', { stage: tm(`stageName.${lastStage}`) }))
   }
   if (res.code !== 0) throw new Error(friendlyError(res.stderr || stderrTail.join('\n')))
   if (!outputPath) {
@@ -471,7 +469,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
       const m = res.stdout.match(/\[download\] (.+?) has already been downloaded/)
       return { outputPath: m?.[1] ?? '', skipped: true }
     }
-    throw new Error('download finished but no output file was reported')
+    throw new Error(tm('error.noOutputReported'))
   }
   if (format.kind === 'm4r' && /\.m4a$/i.test(outputPath) && existsSync(outputPath)) {
     // yt-dlp only writes .m4a; the ringtone is the same container under the extension iOS expects.
@@ -485,7 +483,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     job.onLog?.(`printed output path not found: ${outputPath}`)
     const recovered = recoverOutput(outputPath, job.destination, job.media.title, job.onLog)
     if (recovered) return { outputPath: recovered, skipped: moveBlocked }
-    throw new Error(`Finished, but the file was not found at ${outputPath}. Look in ${job.destination}; the engine log has the details.`)
+    throw new Error(tm('error.outputMissing', { path: outputPath, folder: job.destination }))
   }
   return { outputPath, skipped: false }
 }

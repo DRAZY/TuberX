@@ -1,13 +1,15 @@
+import { locale, t } from '@/lib/i18n'
+
 /** Last path segment of a Windows or POSIX path, for the destination chip. */
 export function folderName(path: string): string {
-  if (!path) return 'Choose folder'
+  if (!path) return t('folder.choose')
   const parts = path.split(/[\\/]+/).filter(Boolean)
   return parts[parts.length - 1] ?? path
 }
 
 export function formatDate(ms: number): string {
   if (!Number.isFinite(ms)) return ''
-  return new Date(ms).toLocaleDateString(undefined, {
+  return new Date(ms).toLocaleDateString(locale.value, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

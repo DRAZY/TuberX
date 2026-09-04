@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { DEFAULT_SETTINGS, type AppInfo, type Settings, type ToolStatus } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
 import { useUiStore } from '@/stores/ui'
+import { setLocale, t } from '@/lib/i18n'
 
 export const useSettingsStore = defineStore('settings', () => {
   const ui = useUiStore()
@@ -14,6 +15,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const engineResult = ref('')
 
   const proxyActive = computed(() => settings.value.proxyEnabled && !!settings.value.proxy)
+
+  // The UI language follows the setting the moment it changes: no restart, no reload.
+  watch(
+    () => settings.value.language,
+    (language) => setLocale(language ?? 'auto'),
+    { immediate: true },
+  )
 
   async function load(): Promise<void> {
     const next = await guard(() => window.tuberx.settings.get())
@@ -51,10 +59,10 @@ export const useSettingsStore = defineStore('settings', () => {
     const res = await guard(() => window.tuberx.tools.updateEngine())
     engineUpdating.value = false
     if (!res) {
-      engineResult.value = 'Update failed'
+      engineResult.value = t('engine.updateFailed')
       return
     }
-    engineResult.value = res.updated ? `Updated to ${res.version}` : `Already on ${res.version}`
+    engineResult.value = res.updated ? t('engine.updatedTo', { version: res.version }) : t('engine.alreadyOn', { version: res.version })
     ui.toast(res.updated ? 'success' : 'info', engineResult.value)
     await refreshTools()
   }
@@ -64,8 +72,12 @@ export const useSettingsStore = defineStore('settings', () => {
       listen('tools:status', (next) => {
         tools.value = next
       }),
+      // Any change made through the bridge (this window, another window, a script) lands in the store.
+      listen('settings:changed', (next) => {
+        settings.value = next
+      }),
       listen('engine:updated', ({ from, to }) => {
-        engineResult.value = from ? `Updated ${from} → ${to}` : `Updated to ${to}`
+        engineResult.value = from ? t('engine.updatedFromTo', { from, to }) : t('engine.updatedTo', { version: to })
         void refreshTools()
       }),
     ]

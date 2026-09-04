@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import type { FormatOption } from '@shared/types'
 import { formatBytes } from '@shared/normalize'
-import { isAudio } from '@/lib/formats'
+import { formatLabel, isAudio } from '@/lib/formats'
+import { t } from '@/lib/i18n'
 
 const props = withDefaults(
   defineProps<{
@@ -33,7 +34,8 @@ function estimate(f: FormatOption): number | undefined {
 }
 function optionLabel(f: FormatOption): string {
   const size = formatBytes(estimate(f))
-  return size ? `${f.label} · ≈${size}` : f.label
+  const label = formatLabel(f)
+  return size ? `${label} · ≈${size}` : label
 }
 
 function onChange(e: Event): void {
@@ -46,18 +48,18 @@ function onChange(e: Event): void {
     class="h-7 max-w-[190px] rounded border border-tx-border bg-tx-bg px-2 text-xs text-tx-text outline-none transition-colors hover:border-tx-muted focus:border-tx-accent disabled:cursor-not-allowed disabled:opacity-40"
     :value="modelValue"
     :disabled="disabled || !formats.length"
-    :title="disabled ? 'Format is locked while this row is busy' : 'Choose a format'"
+    :title="disabled ? t('format.locked') : t('format.choose')"
     @change="onChange"
   >
     <option v-if="!formats.length" value="">—</option>
-    <optgroup v-if="video.length" label="Video">
+    <optgroup v-if="video.length" :label="t('format.video')">
       <option v-for="f in video" :key="f.id" :value="f.id">{{ optionLabel(f) }}</option>
     </optgroup>
-    <optgroup v-if="audio.length" label="Audio">
+    <optgroup v-if="audio.length" :label="t('format.audio')">
       <option v-for="f in audio" :key="f.id" :value="f.id">{{ optionLabel(f) }}</option>
     </optgroup>
-    <optgroup v-if="other.length" label="Other">
-      <option v-for="f in other" :key="f.id" :value="f.id">{{ f.label }}</option>
+    <optgroup v-if="other.length" :label="t('format.other')">
+      <option v-for="f in other" :key="f.id" :value="f.id">{{ formatLabel(f) }}</option>
     </optgroup>
   </select>
 </template>

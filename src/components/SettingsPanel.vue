@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { guard } from '@/lib/ipc'
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Settings } from '@shared/types'
 import Icon from '@/components/Icon.vue'
 import IconButton from '@/components/IconButton.vue'
 import Spinner from '@/components/Spinner.vue'
 import Toggle from '@/components/Toggle.vue'
-import { PRESET_FORMATS } from '@/lib/formats'
+import { PRESET_FORMATS, presetLabel } from '@/lib/formats'
+import { t, tSplit } from '@/lib/i18n'
+import { LOCALES } from '@shared/i18n'
 import { folderName } from '@/lib/paths'
 import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
@@ -39,7 +41,7 @@ function openLogs(): void {
 const MP3_BITRATES: Settings['mp3Bitrate'][] = [128, 192, 256, 320]
 const CONCURRENCY: Settings['concurrentDownloads'][] = [1, 2, 3, 4, 5, 6, 8]
 const BROWSERS: { value: Settings['cookiesFromBrowser']; label: string }[] = [
-  { value: '', label: 'None' },
+  { value: '', label: '' }, // rendered as the localized "None"
   { value: 'chrome', label: 'Chrome' },
   { value: 'edge', label: 'Edge' },
   { value: 'firefox', label: 'Firefox' },
@@ -52,6 +54,8 @@ const proxy = ref(store.settings.proxy)
 const loginUsername = ref(store.settings.loginUsername)
 const rateLimit = ref(store.settings.rateLimitKbps)
 const encoders = ref<{ h264: string | null; h265: string | null }>({ h264: null, h265: null })
+/** The codec hint split around the bolded encoder name. */
+const codecHintParts = computed(() => tSplit('settings.output.codecHint', 'encoder'))
 onMounted(() => {
   void guard(() => window.tuberx.tools.encoders()).then((e) => e && (encoders.value = e))
 })
@@ -110,18 +114,31 @@ function commitProxy(): void {
 <template>
   <div class="flex h-full flex-col">
     <header class="flex shrink-0 items-center justify-between border-b border-tx-border px-4 py-3">
-      <h2 class="text-sm font-semibold">Settings</h2>
-      <IconButton icon="close" label="Close" @click="ui.close()" />
+      <h2 class="text-sm font-semibold">{{ t('settings.title') }}</h2>
+      <IconButton icon="close" :label="t('common.close')" @click="ui.close()" />
     </header>
 
     <div ref="body" class="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+      <!-- Language -->
+      <section class="border-b border-tx-border py-4">
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.language.title') }}</h3>
+        <select
+          class="tx-field"
+          :value="store.settings.language ?? 'auto'"
+          @change="set('language', ($event.target as HTMLSelectElement).value as Settings['language'])"
+        >
+          <option value="auto">{{ t('settings.language.system') }}</option>
+          <option v-for="l in LOCALES" :key="l.code" :value="l.code">{{ l.name }}</option>
+        </select>
+      </section>
+
       <!-- Destination -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Destination</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.destination.title') }}</h3>
         <button
           type="button"
           class="tx-btn-ghost flex w-full items-center gap-2 !justify-start"
-          :title="store.settings.destination || 'No folder chosen yet'"
+          :title="store.settings.destination || t('settings.destination.none')"
           @click="store.pickDestination()"
         >
           <Icon name="folder" :size="14" />
@@ -132,7 +149,7 @@ function commitProxy(): void {
         </p>
 
         <div v-if="store.settings.destinations.length > 1" class="mt-2">
-          <p class="mb-1 text-[10px] text-tx-muted">Recent folders</p>
+          <p class="mb-1 text-[10px] text-tx-muted">{{ t('settings.destination.recent') }}</p>
           <ul class="list-none space-y-0.5">
             <li v-for="d in store.settings.destinations" :key="d">
               <button
@@ -155,50 +172,48 @@ function commitProxy(): void {
 
       <!-- Output -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Output</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.output.title') }}</h3>
         <label class="block text-[12px]">
-          Default format
+          {{ t('settings.output.defaultFormat') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.defaultFormatId"
             @change="set('defaultFormatId', ($event.target as HTMLSelectElement).value)"
           >
-            <option v-for="f in PRESET_FORMATS" :key="f.id" :value="f.id">{{ f.label }}</option>
+            <option v-for="f in PRESET_FORMATS" :key="f.id" :value="f.id">{{ presetLabel(f.id) }}</option>
           </select>
         </label>
 
         <Toggle
           class="mt-2"
           :model-value="store.settings.applyDefaultToNew"
-          label="Apply to new links"
-          hint="New rows adopt the default instead of the site's best guess."
+          :label="t('settings.output.applyToNew')"
+          :hint="t('settings.output.applyToNewHint')"
           @update:model-value="set('applyDefaultToNew', $event)"
         />
         <Toggle
           :model-value="store.settings.convertNonMp4"
-          label="Convert non-MP4 video to MP4"
-          hint="VP9, AV1 and WebM sources get remuxed into MP4 without re-encoding."
+          :label="t('settings.output.convertNonMp4')"
+          :hint="t('settings.output.convertNonMp4Hint')"
           @update:model-value="set('convertNonMp4', $event)"
         />
         <label class="mt-2 block text-[12px]">
-          Video codec
+          {{ t('settings.output.videoCodec') }}
           <select class="tx-field mt-1" :value="store.settings.videoCodec" @change="set('videoCodec', ($event.target as HTMLSelectElement).value as Settings['videoCodec'])">
-            <option value="auto">Prefer H.264, keep the source codec otherwise (fastest)</option>
-            <option value="h264">Always H.264 (plays everywhere)</option>
-            <option value="h265">Always H.265 / HEVC (smaller files)</option>
+            <option value="auto">{{ t('settings.output.codecAuto') }}</option>
+            <option value="h264">{{ t('settings.output.codecH264') }}</option>
+            <option value="h265">{{ t('settings.output.codecH265') }}</option>
           </select>
         </label>
         <p class="mt-1 text-[10px] leading-snug text-tx-muted">
-          <template v-if="store.settings.videoCodec === 'auto'">Sources already in H.264 are never re-encoded. Pick a codec to convert the rest.</template>
+          <template v-if="store.settings.videoCodec === 'auto'">{{ t('settings.output.codecAutoHint') }}</template>
           <template v-else>
-            Sources in another codec are re-encoded after the download with
-            <b>{{ (store.settings.videoCodec === 'h264' ? encoders.h264 : encoders.h265) ?? 'no available encoder' }}</b>.
-            Hardware encoders finish in a fraction of the play time; software takes about real time.
+            {{ codecHintParts[0] }}<b>{{ (store.settings.videoCodec === 'h264' ? encoders.h264 : encoders.h265) ?? t('settings.output.noEncoder') }}</b>{{ codecHintParts[1] }}
           </template>
         </p>
 
         <label class="mt-2 block text-[12px]">
-          MP3 bitrate
+          {{ t('settings.output.mp3Bitrate') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.mp3Bitrate"
@@ -206,31 +221,31 @@ function commitProxy(): void {
               set('mp3Bitrate', Number(($event.target as HTMLSelectElement).value) as Settings['mp3Bitrate'])
             "
           >
-            <option v-for="b in MP3_BITRATES" :key="b" :value="b">{{ b }} kbps</option>
+            <option v-for="b in MP3_BITRATES" :key="b" :value="b">{{ t('settings.output.kbps', { n: b }) }}</option>
           </select>
         </label>
       </section>
 
       <!-- Subtitles -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Subtitles</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.subtitles.title') }}</h3>
         <Toggle
           :model-value="store.settings.embedSubtitles"
-          label="Embed subtitles in the file"
+          :label="t('settings.subtitles.embed')"
           @update:model-value="set('embedSubtitles', $event)"
         />
         <Toggle
           :model-value="store.settings.writeSubtitleFiles"
-          label="Also save subtitle files"
-          hint="Writes .srt alongside the media."
+          :label="t('settings.subtitles.writeFiles')"
+          :hint="t('settings.subtitles.writeFilesHint')"
           @update:model-value="set('writeSubtitleFiles', $event)"
         />
         <label class="mt-2 block text-[12px]">
-          Languages
+          {{ t('settings.subtitles.languages') }}
           <input
             v-model="langs"
             class="tx-field mt-1"
-            placeholder="en, es, fr"
+            :placeholder="t('settings.subtitles.langsPlaceholder')"
             @change="commitLangs"
             @blur="commitLangs"
           />
@@ -239,14 +254,14 @@ function commitProxy(): void {
 
       <!-- Thumbnails -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Thumbnails</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.thumbnails.title') }}</h3>
         <Toggle
           :model-value="store.settings.saveThumbnail"
-          label="Save the thumbnail next to the media"
+          :label="t('settings.thumbnails.save')"
           @update:model-value="set('saveThumbnail', $event)"
         />
         <label class="mt-2 block text-[12px]">
-          Image format
+          {{ t('settings.thumbnails.imageFormat') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.thumbnailFormat"
@@ -263,46 +278,46 @@ function commitProxy(): void {
 
       <!-- Downloads -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Downloads</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.downloads.title') }}</h3>
         <label class="mt-2 block text-[12px]">
-          Re-downloading in a different format
+          {{ t('settings.downloads.redownload') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.onConflict"
             @change="set('onConflict', ($event.target as HTMLSelectElement).value as Settings['onConflict'])"
           >
-            <option value="keep-both">Keep both files (adds the quality to the name)</option>
-            <option value="replace">Replace the existing file</option>
+            <option value="keep-both">{{ t('settings.downloads.keepBoth') }}</option>
+            <option value="replace">{{ t('settings.downloads.replace') }}</option>
           </select>
         </label>
         <p class="mt-1 text-[10px] leading-snug text-tx-muted">
-          Changing the format and choosing Download again never touches the file you already have. The same format again refreshes that one file.
+          {{ t('settings.downloads.conflictHint') }}
         </p>
         <Toggle
           class="mt-2"
           :model-value="store.settings.skipIfExists"
-          label="Skip if the file already exists"
+          :label="t('settings.downloads.skipIfExists')"
           @update:model-value="set('skipIfExists', $event)"
         />
         <label class="mt-2 block text-[12px]">
-          Speed limit (KB/s, 0 = none)
+          {{ t('settings.downloads.speedLimit') }}
           <input v-model.number="rateLimit" class="tx-field mt-1 w-32" type="number" min="0" step="100" @change="set('rateLimitKbps', Math.max(0, Math.round(rateLimit || 0)))" />
         </label>
         <label class="mt-2 block text-[12px]">
-          When the queue finishes
+          {{ t('settings.downloads.whenDone') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.onQueueDone"
             @change="set('onQueueDone', ($event.target as HTMLSelectElement).value as Settings['onQueueDone'])"
           >
-            <option value="none">Do nothing</option>
-            <option value="open-folder">Open the destination folder</option>
-            <option value="sleep">Put the computer to sleep (30 s warning)</option>
-            <option value="shutdown">Shut the computer down (30 s warning)</option>
+            <option value="none">{{ t('settings.downloads.doNothing') }}</option>
+            <option value="open-folder">{{ t('settings.downloads.openFolder') }}</option>
+            <option value="sleep">{{ t('settings.downloads.sleep') }}</option>
+            <option value="shutdown">{{ t('settings.downloads.shutdown') }}</option>
           </select>
         </label>
         <label class="mt-2 block text-[12px]">
-          Concurrent downloads
+          {{ t('settings.downloads.concurrent') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.concurrentDownloads"
@@ -319,22 +334,22 @@ function commitProxy(): void {
         <Toggle
           class="mt-2"
           :model-value="store.settings.useAria2"
-          label="Use aria2 for faster downloads"
-          hint="Multi-connection HTTP. Turn off if a site throttles you."
+          :label="t('settings.downloads.useAria2')"
+          :hint="t('settings.downloads.useAria2Hint')"
           @update:model-value="set('useAria2', $event)"
         />
         <Toggle
           :model-value="store.settings.notifyOnComplete"
-          label="Notify when a download finishes"
+          :label="t('settings.downloads.notify')"
           @update:model-value="set('notifyOnComplete', $event)"
         />
       </section>
 
       <!-- Network -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Network</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.network.title') }}</h3>
         <label class="block text-[12px]">
-          Proxy
+          {{ t('settings.network.proxy') }}
           <input
             v-model="proxy"
             class="tx-field mt-1"
@@ -347,15 +362,14 @@ function commitProxy(): void {
         <Toggle
           class="mt-2"
           :model-value="store.settings.proxyEnabled"
-          label="Route requests through the proxy"
+          :label="t('settings.network.proxyEnabled')"
           @update:model-value="set('proxyEnabled', $event)"
         />
         <p class="mt-3 text-[11px] leading-snug text-tx-muted">
-          Cookies are optional. TuberX does not need a login for normal videos. Use these only for private,
-          age-restricted or members-only media.
+          {{ t('settings.network.cookiesIntro') }}
         </p>
         <label class="mt-2 block text-[12px]">
-          Cookies from browser
+          {{ t('settings.network.cookiesFromBrowser') }}
           <select
             class="tx-field mt-1"
             :value="store.settings.cookiesFromBrowser"
@@ -366,19 +380,18 @@ function commitProxy(): void {
               )
             "
           >
-            <option v-for="b in BROWSERS" :key="b.value" :value="b.value">{{ b.label }}</option>
+            <option v-for="b in BROWSERS" :key="b.value" :value="b.value">{{ b.label || t('settings.network.browserNone') }}</option>
           </select>
         </label>
         <p class="mt-1 text-[10px] leading-snug text-tx-muted">
-          Reads the login from a browser where you are signed in. On Windows, Firefox works best; Chrome and Edge
-          often refuse to hand over their cookies.
+          {{ t('settings.network.cookiesBrowserHint') }}
         </p>
         <div class="mt-3 text-[12px]">
           <div class="flex items-center justify-between gap-2">
-            <span>Cookies file (cookies.txt)</span>
+            <span>{{ t('settings.network.cookiesFile') }}</span>
             <span class="flex gap-1">
               <button type="button" class="tx-btn-ghost text-[11px]" @click="pickCookiesFile">
-                {{ store.settings.cookiesFile ? 'Replace' : 'Choose…' }}
+                {{ store.settings.cookiesFile ? t('settings.network.replace') : t('settings.network.choose') }}
               </button>
               <button
                 v-if="store.settings.cookiesFile"
@@ -386,7 +399,7 @@ function commitProxy(): void {
                 class="tx-btn-ghost text-[11px]"
                 @click="clearCookiesFile"
               >
-                Remove
+                {{ t('common.remove') }}
               </button>
             </span>
           </div>
@@ -395,72 +408,71 @@ function commitProxy(): void {
             class="mt-1 truncate text-[10px] text-tx-muted"
             :title="store.settings.cookiesFile"
           >
-            Imported · {{ store.settings.cookiesFile }}
+            {{ t('settings.network.imported', { path: store.settings.cookiesFile }) }}
           </p>
           <p v-else class="mt-1 text-[10px] leading-snug text-tx-muted">
-            Export a cookies.txt from your browser with a “Get cookies.txt LOCALLY” extension, then import it here.
+            {{ t('settings.network.cookiesExportHint') }}
           </p>
         </div>
         <Toggle
           class="mt-3"
           :model-value="store.settings.forceIpv4"
-          label="Prefer IPv4"
-          hint="Connects over IPv4 only. Fixes most “Sign in to confirm you're not a bot” prompts, which YouTube shows to many IPv6 connections."
+          :label="t('settings.network.ipv4')"
+          :hint="t('settings.network.ipv4Hint')"
           @update:model-value="set('forceIpv4', $event)"
         />
         <Toggle
           class="mt-3"
           :model-value="store.settings.potHelper"
-          label="YouTube PO-token helper (bgutil)"
-          hint="Mints the proof-of-origin tokens YouTube expects, so downloads work without a login. Needs jnn-pa.googleapis.com reachable on your network."
+          :label="t('settings.network.pot')"
+          :hint="t('settings.network.potHint')"
           @update:model-value="set('potHelper', $event)"
         />
       </section>
 
       <!-- Site login -->
       <section class="border-b border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Site login</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.login.title') }}</h3>
         <p class="text-[10px] leading-snug text-tx-muted">
-          Optional. Used by sites that accept a username and password (Vimeo, Dailymotion, Bandcamp and others). YouTube does not, so it never
-          receives these; use a cookies file for YouTube. The password is kept in the system keychain.
+          {{ t('settings.login.intro') }}
         </p>
         <label class="mt-2 block text-[12px]">
-          Username or e-mail
+          {{ t('settings.login.username') }}
           <input v-model.trim="loginUsername" class="tx-field mt-1" type="text" autocomplete="off" spellcheck="false" @change="set('loginUsername', loginUsername)" />
         </label>
         <label class="mt-2 block text-[12px]">
-          Password
+          {{ t('settings.login.password') }}
           <div class="mt-1 flex items-center gap-2">
             <input
               v-model="loginPassword"
               class="tx-field flex-1"
               type="password"
               autocomplete="new-password"
-              :placeholder="store.settings.hasLoginPassword ? '•••••••• (stored)' : ''"
+              :placeholder="store.settings.hasLoginPassword ? t('settings.login.storedPlaceholder') : ''"
             />
-            <button type="button" class="tx-btn-ghost" :disabled="!loginPassword" @click="savePassword">Save</button>
-            <button v-if="store.settings.hasLoginPassword" type="button" class="tx-btn-ghost" @click="clearPassword">Clear</button>
+            <button type="button" class="tx-btn-ghost" :disabled="!loginPassword" @click="savePassword">{{ t('common.save') }}</button>
+            <button v-if="store.settings.hasLoginPassword" type="button" class="tx-btn-ghost" @click="clearPassword">{{ t('common.clear') }}</button>
           </div>
         </label>
         <label class="mt-2 block text-[12px]">
-          Video password (password-protected Vimeo videos)
+          {{ t('settings.login.videoPassword') }}
           <input v-model.trim="videoPassword" class="tx-field mt-1" type="text" autocomplete="off" spellcheck="false" @change="set('videoPassword', videoPassword)" />
         </label>
         <label class="mt-2 block text-[12px]">
-          Identify as
+          {{ t('settings.login.identifyAs') }}
           <select class="tx-field mt-1" :value="store.settings.userAgent" @change="set('userAgent', ($event.target as HTMLSelectElement).value as Settings['userAgent'])">
-            <option value="default">yt-dlp default</option>
-            <option value="desktop">Desktop Chrome</option>
-            <option value="ios">iPhone Safari</option>
-            <option value="android">Android Chrome</option>
+            <option value="default">{{ t('settings.login.uaDefault') }}</option>
+            <option value="desktop">{{ t('settings.login.uaDesktop') }}</option>
+            <option value="ios">{{ t('settings.login.uaIos') }}</option>
+            <option value="android">{{ t('settings.login.uaAndroid') }}</option>
           </select>
         </label>
-        <p class="mt-1 text-[10px] leading-snug text-tx-muted">Some sites hand phones different pages or formats; change this only when a site misbehaves.</p>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">{{ t('settings.login.uaHint') }}</p>
       </section>
 
       <!-- Engine -->
       <section class="py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">Engine</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.engine.title') }}</h3>
         <ul class="list-none space-y-1">
           <li
             v-for="tool in store.tools"
@@ -469,14 +481,14 @@ function commitProxy(): void {
           >
             <span class="font-mono text-tx-text">{{ tool.name }}</span>
             <span v-if="tool.ok" class="truncate text-tx-muted" :title="tool.path">
-              {{ tool.version || 'ready' }}
+              {{ tool.version || t('settings.engine.ready') }}
             </span>
             <span v-else class="flex items-center gap-1 truncate text-red-400" :title="tool.error">
               <Icon name="alert" :size="11" />
-              {{ tool.error || 'missing' }}
+              {{ tool.error || t('settings.engine.missing') }}
             </span>
           </li>
-          <li v-if="!store.tools.length" class="text-[11px] text-tx-muted">Checking tools…</li>
+          <li v-if="!store.tools.length" class="text-[11px] text-tx-muted">{{ t('settings.engine.checking') }}</li>
         </ul>
 
         <div class="mt-3 flex items-center gap-2">
@@ -488,9 +500,9 @@ function commitProxy(): void {
           >
             <Spinner v-if="store.engineUpdating" :size="12" />
             <Icon v-else name="refresh" :size="12" />
-            Update yt-dlp now
+            {{ t('settings.engine.updateNow') }}
           </button>
-          <button type="button" class="tx-btn-ghost" title="engine.log records every line of every download" @click="openLogs()">Open log folder</button>
+          <button type="button" class="tx-btn-ghost" :title="t('settings.engine.logTitle')" @click="openLogs()">{{ t('settings.engine.openLogs') }}</button>
           <span v-if="store.engineResult" class="truncate text-[10px] text-tx-muted">
             {{ store.engineResult }}
           </span>
@@ -499,15 +511,15 @@ function commitProxy(): void {
         <Toggle
           class="mt-2"
           :model-value="store.settings.autoUpdateEngine"
-          label="Keep yt-dlp up to date automatically"
-          hint="Sites change constantly; this is what keeps downloads working."
+          :label="t('settings.engine.autoUpdate')"
+          :hint="t('settings.engine.autoUpdateHint')"
           @update:model-value="set('autoUpdateEngine', $event)"
         />
       </section>
 
       <!-- About -->
       <section id="about" class="border-t border-tx-border py-4">
-        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">About</h3>
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.about.title') }}</h3>
         <div class="flex items-start gap-3">
           <img src="/icon.png" alt="" class="h-10 w-10 shrink-0 rounded-lg" />
           <div class="min-w-0">
@@ -516,9 +528,7 @@ function commitProxy(): void {
               <span class="font-mono text-[11px] text-tx-muted">{{ store.appInfo ? `v${store.appInfo.version}` : '…' }}</span>
             </div>
             <p class="mt-1 text-[11px] leading-snug text-tx-muted">
-              Paste a link, get the media. A standalone video and audio downloader for Windows and Apple-silicon Macs:
-              one row per link, a quality you can see and choose, and finished MP4, MP3, M4A or WAV files with tags,
-              chapters, cover art and subtitles already in place. Powered by yt-dlp, ffmpeg and aria2c, which update themselves.
+              {{ t('settings.about.blurb') }}
             </p>
             <p v-if="store.appInfo" class="mt-1 font-mono text-[10px] text-tx-muted">
               {{ store.appInfo.platform }} {{ store.appInfo.arch }} · Electron {{ store.appInfo.electron }} · Chromium {{ store.appInfo.chrome.split('.')[0] }}
@@ -526,20 +536,20 @@ function commitProxy(): void {
           </div>
         </div>
         <div v-if="store.appInfo" class="mt-3 flex flex-wrap gap-2">
-          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.homepage)">Project page</button>
-          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.releases)">Releases</button>
-          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.issues)">Report a problem</button>
-          <button type="button" class="tx-btn-ghost" @click="openLogs()">Open log folder</button>
-          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.licenses)">Third-party licenses</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.homepage)">{{ t('settings.about.projectPage') }}</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.releases)">{{ t('settings.about.releases') }}</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.issues)">{{ t('settings.about.report') }}</button>
+          <button type="button" class="tx-btn-ghost" @click="openLogs()">{{ t('settings.engine.openLogs') }}</button>
+          <button type="button" class="tx-btn-ghost" @click="openLink(store.appInfo.licenses)">{{ t('settings.about.licenses') }}</button>
         </div>
         <p class="mt-3 text-[10px] leading-snug text-tx-muted">
-          Updates arrive automatically from GitHub Releases. MIT licensed. © 2026 Andre Hall.
+          {{ t('settings.about.footer') }}
         </p>
       </section>
     </div>
     <footer class="flex shrink-0 items-center justify-between border-t border-tx-border px-4 py-2 text-[10px] text-tx-muted">
-      <span>Changes apply immediately.</span>
-      <button type="button" class="tx-btn-accent text-[12px]" @click="ui.close()">Done</button>
+      <span>{{ t('settings.applyNote') }}</span>
+      <button type="button" class="tx-btn-accent text-[12px]" @click="ui.close()">{{ t('common.done') }}</button>
     </footer>
   </div>
 </template>
