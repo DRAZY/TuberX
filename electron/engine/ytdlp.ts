@@ -362,8 +362,8 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   const infoArgs = infoFresh ? ['--load-info-json', job.media.infoJsonPath!] : urlArgs
   args.push(...infoArgs)
 
-  // Parallel engine for video outputs: streams, subtitles and cover fetched together, one finishing write.
-  if (settings.engineMode !== 'classic' && (format.kind === 'video' || format.kind === 'video-only')) {
+  // Parallel engine for video and audio outputs: streams, subtitles and cover fetched together, one finishing write.
+  if (settings.engineMode !== 'classic' && format.kind !== 'subs') {
     try {
       if (!infoFresh) {
         // The fast path works from the saved metadata; refresh it when it is stale so stream URLs are valid.

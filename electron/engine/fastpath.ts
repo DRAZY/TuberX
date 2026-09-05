@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, extname, join } from 'node:path'
-import type { DownloadProgress, FormatOption, MediaItem, Settings } from '../../shared/types'
+import type { DownloadProgress, FormatOption, MediaItem, OutputKind, Settings } from '../../shared/types'
 import { PROGRESS_TEMPLATE, parseAria2Line, parseProgressLine } from '../../shared/progress'
 import { run } from './run'
 import { resolveTool, toolDirs } from './paths'
@@ -8,7 +8,7 @@ import { bestEncoder, encoderArgs } from './encoders'
 import { inspect } from './transcode'
 
 /**
- * The parallel engine for video outputs.
+ * The parallel engine for video and audio outputs.
  *
  * yt-dlp on its own downloads the video track, then the audio track, then fetches subtitles and the
  * thumbnail, then rewrites the finished file three times (merge, subtitles, tags) and patches the cover
@@ -20,6 +20,14 @@ import { inspect } from './transcode'
  * subtitles and cover art in a single write. A forced codec is applied in that same pass, so nothing is
  * ever written twice. Every step resumes: stream files keep stable names, aria2c continues partials,
  * finished streams are recognised and skipped.
+ *
+ * Audio outputs (MP3, M4A, WAV, M4R) take the same route: the best audio stream and the cover are
+ * fetched together and one ffmpeg pass extracts, encodes when the codec asks for it, tags and embeds
+ * the cover. yt-dlp's own post-processors are not involved, so nothing here needs ffprobe, mutagen or
+ * AtomicParsley, none of which the bundled engine has.
+ *
+ * The finished video is always MP4 (when "convert to MP4" is on): sources whose codecs MP4 cannot carry
+ * (VP8, VP9, Vorbis, Opus …) are encoded to H.264 / AAC in the finishing pass instead of failing a remux.
  */
 
 export interface FastContext {
@@ -58,6 +66,10 @@ export interface FastResult {
 export class FastPathUnavailable extends Error {}
 
 const TRANSFER_IDLE_MS = 90 * 1000
+const AUDIO_KINDS = new Set<OutputKind>(['mp3', 'm4a', 'wav', 'm4r'])
+/** Codecs an MP4 file can carry and every mainstream player opens; anything else is encoded. */
+const MP4_VIDEO = /^(h264|avc1?|hevc|h265|hvc1|av1|mpeg4)$/
+const MP4_AUDIO = /^(aac|mp3|mp4a|ac3|eac3|alac)$/
 const clean = (t: string) => t.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60) || 'media'
 
 export async function downloadFast(job: FastJob, ctx: FastContext): Promise<FastResult> {
@@ -68,13 +80,19 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   const infoPath = job.media.infoJsonPath
   if (!infoPath || !existsSync(infoPath)) throw new FastPathUnavailable('no info json')
   const info = JSON.parse(readFileSync(infoPath, 'utf8')) as {
-    formats?: { format_id: string; filesize?: number; filesize_approx?: number; ext?: string; acodec?: string; vcodec?: string }[]
+    formats?: { format_id: string; filesize?: number; filesize_approx?: number; ext?: string; acodec?: string; vcodec?: string; abr?: number; tbr?: number }[]
     title?: string; uploader?: string; channel?: string; upload_date?: string; description?: string; webpage_url?: string
     thumbnail?: string; chapters?: { title?: string; start_time: number; end_time: number }[]; duration?: number
   }
+  const byId = new Map((info.formats ?? []).map((f) => [f.format_id, f]))
+  const kind = job.format.kind
+  const isAudio = AUDIO_KINDS.has(kind)
+  if (!isAudio && kind !== 'video' && kind !== 'video-only') throw new FastPathUnavailable(`kind ${kind}`)
 
   // 1. What yt-dlp would pick, and what it would call the file: one quick offline run.
-  const sel = await run(ctx.bin, [...ctx.common, '--load-info-json', infoPath, ...job.formatArgs, '--skip-download', '--windows-filenames',
+  //    Audio outputs ask only for the stream selection; the extraction flags are ours to apply.
+  const selectArgs = isAudio ? ['-f', job.format.selector] : job.formatArgs
+  const sel = await run(ctx.bin, [...ctx.common, '--load-info-json', infoPath, ...selectArgs, '--skip-download', '--windows-filenames',
     '-P', job.destination, '-o', job.outputTemplate,
     '--print', 'TXSEL|%(requested_formats.0.format_id)s|%(requested_formats.1.format_id)s|%(format_id)s',
     '--print', 'TXNAME|%(filename)s'], { env: ctx.env, pathPrepend: toolDirs(), timeoutMs: 60000, signal: job.signal }).done
@@ -83,9 +101,21 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   const nameLine = sel.stdout.split(/\r?\n/).find((l) => l.startsWith('TXNAME|'))
   if (sel.code !== 0 || !selLine || !nameLine) throw new FastPathUnavailable(`selection failed: ${sel.stderr.trim().split('\n').pop() ?? sel.code}`)
   const [, rf0, rf1, single] = selLine.split('|')
-  const ids = rf0 && rf0 !== 'NA' ? [rf0, ...(rf1 && rf1 !== 'NA' ? [rf1] : [])] : [single]
+  let ids = rf0 && rf0 !== 'NA' ? [rf0, ...(rf1 && rf1 !== 'NA' ? [rf1] : [])] : [single]
   if (!ids[0] || ids[0] === 'NA') throw new FastPathUnavailable('no format selected')
-  const finalPath = nameLine.slice('TXNAME|'.length).trim()
+  let finalPath = nameLine.slice('TXNAME|'.length).trim()
+  const namedExt = extname(finalPath)
+  if (isAudio) {
+    // "ba/b" may resolve to a video+audio pair; only the audio half is wanted. A muxed single file is
+    // downloaded whole and the audio is taken out of it in the finishing pass.
+    if (ids.length > 1) ids = [ids.find((id) => (byId.get(id)?.acodec ?? 'none') !== 'none') ?? ids[ids.length - 1]]
+    finalPath = finalPath.slice(0, finalPath.length - namedExt.length) + `.${kind}`
+  } else if (!/^\.(mp4|m4v|mov)$/i.test(namedExt)) {
+    // A single WebM/MKV format: the finished file is MP4 when conversion is on, otherwise the classic
+    // pipeline keeps the container as it is (cover art and mov_text subtitles do not exist in WebM).
+    if (!job.settings.convertNonMp4) throw new FastPathUnavailable(`container ${namedExt} kept as is`)
+    finalPath = finalPath.slice(0, finalPath.length - namedExt.length) + '.mp4'
+  }
   mark('select', t0)
   if (existsSync(finalPath) && !job.overwrite) {
     log(`kept existing file untouched: ${finalPath}`)
@@ -95,7 +125,6 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   // 2. Everything in parallel: each stream in its own yt-dlp, subtitles in another, the cover by plain fetch.
   mkdirSync(ctx.tempDir, { recursive: true })
   const stem = `${clean(job.media.title)} [${(info as { id?: string }).id ?? 'x'}]`
-  const byId = new Map((info.formats ?? []).map((f) => [f.format_id, f]))
   const totals = ids.map((id) => byId.get(id)?.filesize ?? byId.get(id)?.filesize_approx ?? 0)
   const done = ids.map(() => 0)
   const speeds = ids.map(() => 0)
@@ -146,7 +175,7 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
     return join(ctx.tempDir, file)
   }
 
-  const wantSubs = job.format.kind === 'video' && (job.settings.embedSubtitles || job.settings.writeSubtitleFiles) && job.media.subtitles.length > 0
+  const wantSubs = kind === 'video' && (job.settings.embedSubtitles || job.settings.writeSubtitleFiles) && job.media.subtitles.length > 0
   const subs = async (): Promise<string[]> => {
     if (!wantSubs) return []
     const langs = job.settings.subtitleLangs.length ? job.settings.subtitleLangs : ['en']
@@ -158,7 +187,8 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
     if (res.code !== 0) log(`subtitles skipped: ${res.stderr.trim().split('\n').pop() ?? res.code}`)
     return readdirSync(ctx.tempDir).filter((f) => f.startsWith(`${stem}.`) && /\.srt$/i.test(f) && !/\.f\d+\./.test(f)).map((f) => join(ctx.tempDir, f))
   }
-  const wantCover = job.format.kind === 'video' && !!(job.media.thumbnail || info.thumbnail)
+  // WAV cannot carry cover art; a video-only file has no reason to.
+  const wantCover = (kind === 'video' || (isAudio && kind !== 'wav')) && !!(job.media.thumbnail || info.thumbnail)
   const cover = async (): Promise<string | null> => {
     if (!wantCover) return null
     const url = job.media.thumbnail || info.thumbnail!
@@ -184,48 +214,109 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   const tFinish = Date.now()
   const ffmpeg = resolveTool('ffmpeg')
   if (!ffmpeg) throw new FastPathUnavailable('ffmpeg missing')
-  const videoIn = streamPaths[0]
-  const audioIn = streamPaths[1]
-  const vinfo = await inspect(videoIn)
-  const inputs: string[] = ['-i', videoIn]
-  if (audioIn) inputs.push('-i', audioIn)
-  for (const s of subPaths) inputs.push('-i', s)
-  const chapters = (info.chapters ?? []).filter((c) => c.end_time > c.start_time)
+  const inputs: string[] = []
+  const maps: string[] = []
+  let codecArgs: string[] = []
+  let audioArgs: string[] = []
+  let subArgs: string[] = []
+  let coverArgs: string[] = []
+  let limitArgs: string[] = []
+  let encoding = false
+  let tmpExt = extname(finalPath)
+  const chapters = kind === 'wav' ? [] : (info.chapters ?? []).filter((c) => c.end_time > c.start_time)
   let chapterFile: string | null = null
-  if (chapters.length) {
+  const writeChapters = () => {
+    if (!chapters.length) return
     const esc = (t: string) => t.replace(/([=;#\\\n])/g, '\\$1')
     chapterFile = join(ctx.tempDir, `${stem}.chapters.txt`)
     writeFileSync(chapterFile, [';FFMETADATA1', ...chapters.flatMap((c, i) => ['[CHAPTER]', 'TIMEBASE=1/1000', `START=${Math.round(c.start_time * 1000)}`, `END=${Math.round(c.end_time * 1000)}`, `title=${esc(c.title || `Chapter ${i + 1}`)}`])].join('\n') + '\n')
     inputs.push('-i', chapterFile)
   }
-  if (coverPath) inputs.push('-i', coverPath)
-  const maps: string[] = ['-map', '0:v:0']
-  if (audioIn) maps.push('-map', '1:a:0')
-  else if (vinfo.acodec && job.format.kind === 'video') maps.push('-map', '0:a?') // muxed single format
-  const subBase = audioIn ? 2 : 1
-  subPaths.forEach((_, i) => maps.push('-map', `${subBase + i}:0`))
-  const chapterIdx = subBase + subPaths.length
-  const coverIdx = chapterIdx + (chapterFile ? 1 : 0)
-  if (coverPath) maps.push('-map', `${coverIdx}:v:0`)
+  let chapterIdx = 0
+  let coverIdx = 0
+  const jpeg = !!coverPath && /\.jpe?g$/i.test(coverPath)
 
-  // Codec: copy unless a codec is forced and the source is something else.
-  let codecArgs = ['-c:v:0', 'copy']
-  let encoding = false
-  const wanted = job.settings.videoCodec
-  if (wanted !== 'auto') {
-    const names = wanted === 'h264' ? ['h264', 'avc1'] : ['hevc', 'h265', 'hvc1']
-    if (!(vinfo.vcodec && names.includes(vinfo.vcodec))) {
-      const choice = await bestEncoder(wanted)
-      if (choice) {
-        codecArgs = [...encoderArgs(choice, vinfo.kbps).map((a) => (/^-(c|b|tag|q):v$/.test(a) ? `${a}:0` : a)), '-pix_fmt:v:0', 'yuv420p']
-        encoding = true
-        log(`codec ${vinfo.vcodec ?? '?'} → ${wanted} with ${choice.encoder} in the finishing pass`)
-      }
+  if (isAudio) {
+    const src = streamPaths[0]
+    const ainfo = await inspect(src)
+    if (!ainfo.acodec) throw new Error('the source has no audio track')
+    const abr = byId.get(ids[0])?.abr ?? byId.get(ids[0])?.tbr ?? ainfo.kbps
+    inputs.push('-i', src)
+    maps.push('-map', '0:a:0')
+    chapterIdx = 1
+    writeChapters()
+    coverIdx = chapterIdx + (chapterFile ? 1 : 0)
+    if (coverPath) {
+      inputs.push('-i', coverPath)
+      maps.push('-map', `${coverIdx}:v:0`)
     }
+    switch (kind) {
+      case 'm4a':
+        audioArgs = /^(aac|mp4a|alac)$/.test(ainfo.acodec) ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', `${Math.min(256, Math.max(128, Math.round(abr ?? 160)))}k`]
+        break
+      case 'mp3':
+        audioArgs = ainfo.acodec === 'mp3' ? ['-c:a', 'copy'] : ['-c:a', 'libmp3lame', '-b:a', `${job.settings.mp3Bitrate}k`]
+        break
+      case 'wav':
+        audioArgs = ['-c:a', 'pcm_s16le']
+        break
+      case 'm4r':
+        // iPhone ringtone: AAC in an M4A container, first 40 s, under the extension iOS expects.
+        audioArgs = ['-c:a', 'aac', '-b:a', '128k']
+        limitArgs = ['-t', '40']
+        tmpExt = '.m4a'
+        break
+    }
+    encoding = audioArgs[1] !== 'copy'
+    if (coverPath) {
+      coverArgs = kind === 'mp3'
+        ? ['-c:v', 'mjpeg', '-id3v2_version', '3', '-metadata:s:v', 'title=Album cover', '-metadata:s:v', 'comment=Cover (front)']
+        : ['-c:v', jpeg ? 'copy' : 'mjpeg', '-disposition:v:0', 'attached_pic']
+    }
+    if (encoding) log(`audio ${ainfo.acodec} → ${kind}${abr ? ` (${Math.round(abr)} kbps source)` : ''}`)
+  } else {
+    const videoIn = streamPaths[0]
+    const audioIn = streamPaths[1]
+    const vinfo = await inspect(videoIn)
+    const ainfo = audioIn ? await inspect(audioIn) : vinfo
+    inputs.push('-i', videoIn)
+    if (audioIn) inputs.push('-i', audioIn)
+    for (const s of subPaths) inputs.push('-i', s)
+    maps.push('-map', '0:v:0')
+    if (audioIn) maps.push('-map', '1:a:0')
+    else if (vinfo.acodec && kind === 'video') maps.push('-map', '0:a?') // muxed single format
+    const subBase = audioIn ? 2 : 1
+    subPaths.forEach((_, i) => maps.push('-map', `${subBase + i}:0`))
+    chapterIdx = subBase + subPaths.length
+    writeChapters()
+    coverIdx = chapterIdx + (chapterFile ? 1 : 0)
+    if (coverPath) {
+      inputs.push('-i', coverPath)
+      maps.push('-map', `${coverIdx}:v:0`)
+    }
+
+    // Codec: copy when MP4 can carry it and no codec is forced; otherwise encode in this same pass.
+    // VP8/VP9 sources (WebM-only sites) would fail a remux into MP4, so they are encoded to H.264 here.
+    codecArgs = ['-c:v:0', 'copy']
+    const wanted = job.settings.videoCodec
+    const fits = !!vinfo.vcodec && MP4_VIDEO.test(vinfo.vcodec)
+    const forcedNames = wanted === 'h264' ? ['h264', 'avc1'] : ['hevc', 'h265', 'hvc1']
+    const needs = wanted === 'auto' ? (fits ? null : 'h264') : vinfo.vcodec && forcedNames.includes(vinfo.vcodec) ? null : wanted
+    if (needs) {
+      const choice = await bestEncoder(needs)
+      if (!choice) throw new FastPathUnavailable(`no ${needs} encoder for a ${vinfo.vcodec ?? 'unknown'} source`)
+      codecArgs = [...encoderArgs(choice, vinfo.kbps).map((a) => (/^-(c|b|tag|q):v$/.test(a) ? `${a}:0` : a)), '-pix_fmt:v:0', 'yuv420p']
+      encoding = true
+      log(`codec ${vinfo.vcodec ?? '?'} → ${needs} with ${choice.encoder} in the finishing pass${fits ? '' : ' (MP4 cannot carry the source codec)'}`)
+    }
+    const acodec = ainfo.acodec ?? byId.get(ids[1] ?? ids[0])?.acodec?.replace(/\..*$/, '')
+    const hasAudio = !!audioIn || !!vinfo.acodec
+    audioArgs = hasAudio ? (acodec && MP4_AUDIO.test(acodec) ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', '160k']) : []
+    subArgs = subPaths.length ? ['-c:s', 'mov_text', ...subPaths.flatMap((p, i) => ['-metadata:s:s:' + i, `language=${lang(p)}`])] : []
+    coverArgs = coverPath ? ['-c:v:1', jpeg ? 'copy' : 'mjpeg', '-disposition:v:1', 'attached_pic'] : []
+    tmpExt = '.mp4'
   }
-  const audioArgs = audioIn || vinfo.acodec ? (/opus|vorbis/.test(byId.get(ids[1] ?? '')?.acodec ?? '') ? ['-c:a', 'aac', '-b:a', '160k'] : ['-c:a', 'copy']) : []
-  const subArgs = subPaths.length ? ['-c:s', 'mov_text', ...subPaths.flatMap((p, i) => ['-metadata:s:s:' + i, `language=${lang(p)}`])] : []
-  const coverArgs = coverPath ? ['-c:v:1', /\.jpe?g$/i.test(coverPath) ? 'copy' : 'mjpeg', '-disposition:v:1', 'attached_pic'] : []
+
   // Global tags come from the stream file (nothing of note) and are overridden below; chapter titles travel
   // with the chapters input, and a global reset (-1) would wipe them, so the source is mapped instead.
   const meta = ['-map_metadata', '0', ...(chapterFile ? ['-map_chapters', String(chapterIdx)] : ['-map_chapters', '-1'])]
@@ -233,15 +324,16 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   const date = info.upload_date && /^\d{8}$/.test(info.upload_date) ? `${info.upload_date.slice(0, 4)}-${info.upload_date.slice(4, 6)}-${info.upload_date.slice(6)}` : undefined
   const tags = [...tag('title', info.title ?? job.media.title), ...tag('artist', info.uploader ?? info.channel ?? job.media.uploader), ...tag('date', date),
     ...tag('description', info.description?.slice(0, 4000)), ...tag('comment', info.webpage_url ?? job.media.webpageUrl), ...tag('purl', info.webpage_url ?? job.media.webpageUrl)]
-  const tmpOut = join(ctx.tempDir, `${stem}.finishing${extname(finalPath) || '.mp4'}`)
-  const args = ['-hide_banner', '-y', '-loglevel', 'error', '-nostats', '-progress', 'pipe:1', ...inputs, ...maps, ...codecArgs, ...audioArgs, ...subArgs, ...coverArgs, ...meta, ...tags, '-strict', '-2', tmpOut]
-  const total = (info.duration ?? job.media.duration ?? vinfo.duration ?? 0) * 1_000_000
-  job.onProgress({ stage: encoding ? 'convert' : 'merge', percent: 0 })
+  const tmpOut = join(ctx.tempDir, `${stem}.finishing${tmpExt}`)
+  const args = ['-hide_banner', '-y', '-loglevel', 'error', '-nostats', '-progress', 'pipe:1', ...inputs, ...maps, ...codecArgs, ...audioArgs, ...subArgs, ...coverArgs, ...limitArgs, ...meta, ...tags, '-strict', '-2', tmpOut]
+  const total = (kind === 'm4r' ? Math.min(40, info.duration ?? 40) : info.duration ?? job.media.duration ?? 0) * 1_000_000
+  const stage: DownloadProgress['stage'] = encoding ? 'convert' : isAudio ? 'tag' : 'merge'
+  job.onProgress({ stage, percent: 0 })
   const fin = await run(ffmpeg, args, {
     signal: job.signal, idleTimeoutMs: 10 * 60 * 1000,
     onLine: (line) => {
       const m = line.match(/^out_time_us=(\d+)/)
-      if (m && total > 0) job.onProgress({ stage: encoding ? 'convert' : 'merge', percent: Math.min(99, (Number(m[1]) / total) * 100) })
+      if (m && total > 0) job.onProgress({ stage, percent: Math.min(99, (Number(m[1]) / total) * 100) })
       else if (!/^(frame|fps|bitrate|total_size|out_time|dup_frames|drop_frames|speed|progress|stream_)/.test(line)) job.onLog?.(line)
     },
   }).done

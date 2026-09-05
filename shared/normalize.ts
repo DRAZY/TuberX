@@ -76,7 +76,7 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
   const audioSize = audioOnly.reduce((m, f) => Math.max(m, f.filesize ?? f.filesize_approx ?? 0), 0) || undefined
   const byHeight = new Map<number, { fps: number; size?: number }>()
   for (const f of formats ?? []) {
-    if (!f.height || !f.vcodec || f.vcodec === 'none') continue
+    if (!f.height || f.vcodec === 'none') continue // a height with an unreported codec is still video (archive.org, generic pages)
     const h = snapHeight(f.height)
     const prev = byHeight.get(h)
     const fps = f.fps ?? 30
@@ -120,10 +120,14 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
 
   const audioFormats = (formats ?? []).filter((f) => f.acodec && f.acodec !== 'none')
   const bestAbr = audioFormats.reduce((m, f) => Math.max(m, f.abr ?? f.tbr ?? 0), 0)
-  out.push({ id: 'a:mp3', kind: 'mp3', label: 'MP3 audio', abr: bestAbr || undefined, selector: 'ba/b' })
-  out.push({ id: 'a:m4a', kind: 'm4a', label: 'M4A audio (original)', abr: bestAbr || undefined, filesize: audioSize, selector: 'ba[ext=m4a]/ba/b' })
-  out.push({ id: 'a:wav', kind: 'wav', label: 'WAV audio (lossless PCM)', abr: bestAbr || undefined, selector: 'ba/b' })
-  out.push({ id: 'a:m4r', kind: 'm4r', label: 'M4R ringtone (first 40 s)', selector: 'ba/b' })
+  // A silent video (every format says acodec "none") has nothing to extract; unknown codecs still get the options.
+  const silent = (formats?.length ?? 0) > 0 && formats!.every((f) => f.acodec === 'none')
+  if (!silent) {
+    out.push({ id: 'a:mp3', kind: 'mp3', label: 'MP3 audio', abr: bestAbr || undefined, selector: 'ba/b' })
+    out.push({ id: 'a:m4a', kind: 'm4a', label: 'M4A audio (original)', abr: bestAbr || undefined, filesize: audioSize, selector: 'ba[ext=m4a]/ba/b' })
+    out.push({ id: 'a:wav', kind: 'wav', label: 'WAV audio (lossless PCM)', abr: bestAbr || undefined, selector: 'ba/b' })
+    out.push({ id: 'a:m4r', kind: 'm4r', label: 'M4R ringtone (first 40 s)', selector: 'ba/b' })
+  }
   if (hasSubs) out.push({ id: 's:srt', kind: 'subs', label: 'Subtitles only (.srt)', selector: 'b' })
   return out
 }
@@ -168,7 +172,7 @@ function entryUrl(e: YtDlpJson): string {
 export function normalizeMedia(json: YtDlpJson, requestedUrl: string): MediaItem {
   const isPlaylist = json._type === 'playlist' || (Array.isArray(json.entries) && json.entries.length > 0)
   const formats = isPlaylist ? [] : json.formats ?? []
-  const hasVideo = formats.some((f) => f.vcodec && f.vcodec !== 'none' && f.height)
+  const hasVideo = formats.some((f) => f.vcodec !== 'none' && f.height)
   const subs = isPlaylist ? [] : subtitleTracks(json)
   const options = isPlaylist ? [] : buildFormatOptions(formats, hasVideo, subs.length > 0)
   const entries: PlaylistEntry[] | undefined = isPlaylist
