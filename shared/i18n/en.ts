@@ -377,8 +377,14 @@ export const en = {
   'update.upToDate': 'You have the latest version.',
   'update.failed': 'The update check failed.',
   'update.checkNow': 'Check for updates',
-  'update.auto': 'Check for new versions automatically',
-  'update.autoHint': 'Asks GitHub Releases at launch and every six hours. Nothing is installed without you.',
+  'update.every': 'When to check for new versions',
+  'update.every.hour': 'At launch and every hour',
+  'update.every.sixHours': 'At launch and every six hours',
+  'update.every.day': 'At launch and once a day',
+  'update.every.launch': 'Only when TuberX opens',
+  'update.every.never': 'Never (check manually)',
+  'update.everyHint': 'Asks GitHub Releases for the newest build and tells you with a message in the app. Nothing is installed without you.',
+  'update.toast': 'TuberX {version} is available',
 
   // ---- engine update results ----
   'engine.updateFailed': 'Update failed',

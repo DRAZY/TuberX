@@ -570,13 +570,19 @@ function commitProxy(): void {
             <button type="button" class="tx-btn-ghost !py-0.5" :disabled="store.appUpdate.state === 'checking'" @click="store.checkUpdate()">{{ t('update.checkNow') }}</button>
           </template>
         </div>
-        <Toggle
-          class="mt-2"
-          :model-value="store.settings.autoCheckUpdates"
-          :label="t('update.auto')"
-          :hint="t('update.autoHint')"
-          @update:model-value="set('autoCheckUpdates', $event)"
-        />
+        <label class="mt-3 block text-[11px] text-tx-text">{{ t('update.every') }}</label>
+        <select
+          class="tx-field mt-1"
+          :value="store.settings.updateCheckEvery"
+          @change="set('updateCheckEvery', ($event.target as HTMLSelectElement).value as Settings['updateCheckEvery'])"
+        >
+          <option value="hour">{{ t('update.every.hour') }}</option>
+          <option value="sixHours">{{ t('update.every.sixHours') }}</option>
+          <option value="day">{{ t('update.every.day') }}</option>
+          <option value="launch">{{ t('update.every.launch') }}</option>
+          <option value="never">{{ t('update.every.never') }}</option>
+        </select>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">{{ t('update.everyHint') }}</p>
         <p class="mt-3 text-[10px] leading-snug text-tx-muted">
           {{ t('settings.about.footer') }}
         </p>

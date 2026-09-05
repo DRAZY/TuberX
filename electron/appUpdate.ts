@@ -1,13 +1,17 @@
-import { app, shell } from 'electron'
+import { app, powerMonitor, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import type { UpdateStatus } from '../shared/types'
+import { UPDATE_CHECK_MS, type UpdateStatus } from '../shared/types'
 import { getSettings } from './settings'
 import { send } from './ipc/handlers'
+import { engineLog } from './queue/manager'
+import { tm } from './i18n'
 
 /**
- * App updates. The source of truth is GitHub Releases (DRAZY/TuberX): a launch-time check, a check every
- * six hours, and a manual one from Settings → About. Every result is pushed to the renderer as
- * `update:status`, so the About section and the title bar can show "0.3.2 available".
+ * App updates. The source of truth is GitHub Releases (DRAZY/TuberX): a check 15 s after every launch, then
+ * on the schedule the user picked (hourly by default; every six hours, daily, launch only, or never), again
+ * when the machine wakes from sleep past the interval, and a manual one from Settings → About. Every result
+ * is pushed to the renderer as `update:status` (About badge, Settings dot) and a new version raises a toast
+ * with a "Get the update" action, once per version per session. Every check is written to engine.log.
  *
  * Installing: the Windows installer build downloads and applies the update in place (electron-updater).
  * The portable exe and the ad-hoc-signed Mac build cannot be swapped underneath themselves, so for those
@@ -20,6 +24,8 @@ let status: UpdateStatus = { state: 'idle', current: app.getVersion() }
 let announced = ''
 let timer: NodeJS.Timeout | undefined
 let listenersReady = false
+let lastCheckAt = 0
+let resumeHooked = false
 
 const isPortable = process.platform === 'win32' && !!process.env.PORTABLE_EXECUTABLE_DIR
 /** In-place install is available only for the packaged Windows installer build. */
@@ -44,6 +50,7 @@ export function newer(a: string, b: string): boolean {
 /** Ask GitHub for the latest release; resolves to the new version or null when current. */
 export async function checkForUpdate(manual = false): Promise<UpdateStatus> {
   if (status.state === 'checking' || status.state === 'downloading') return status
+  lastCheckAt = Date.now()
   set({ state: 'checking', error: undefined })
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
@@ -56,13 +63,18 @@ export async function checkForUpdate(manual = false): Promise<UpdateStatus> {
     const current = process.env.TUBERX_FAKE_VERSION || app.getVersion()
     if (newer(latest, current)) {
       set({ state: 'available', latest, url: rel.html_url || RELEASE_URL, publishedAt: rel.published_at, notes: rel.body?.slice(0, 2000) })
+      engineLog('update', `check (${manual ? 'manual' : 'scheduled'}): ${latest} available, running ${current}`)
       if (announced !== latest) {
         announced = latest
-        send('toast', { kind: 'info', message: `TuberX ${latest} is available` })
+        send('toast', { kind: 'info', message: tm('update.toast', { version: latest }), action: 'update' })
       }
-    } else set({ state: 'none', latest, checkedAt: Date.now() })
+    } else {
+      set({ state: 'none', latest, checkedAt: Date.now() })
+      engineLog('update', `check (${manual ? 'manual' : 'scheduled'}): up to date, ${current} is the latest release`)
+    }
   } catch (e) {
     set({ state: 'error', error: (e as Error).message })
+    engineLog('update', `check (${manual ? 'manual' : 'scheduled'}) failed: ${(e as Error).message}`)
     if (manual) send('toast', { kind: 'warn', message: `Update check failed: ${(e as Error).message}` })
   }
   return status
@@ -104,12 +116,24 @@ function wireUpdater(): void {
   autoUpdater.on('error', (err) => set({ state: status.latest ? 'available' : 'error', error: err.message, progress: undefined }))
 }
 
-/** Launch-time check after the window is up, then every six hours, while the setting is on. */
-export function scheduleUpdateChecks(): void {
+/**
+ * Launch-time check 15 s after the window is up (unless the setting is "never"), then on the chosen
+ * interval. Called again whenever the setting changes, so a new schedule takes effect at once.
+ */
+export function scheduleUpdateChecks(launch = true): void {
   if (timer) clearInterval(timer)
-  const tick = () => {
-    if (getSettings().autoCheckUpdates) void checkForUpdate(false)
+  timer = undefined
+  const every = getSettings().updateCheckEvery
+  const interval = UPDATE_CHECK_MS[every] ?? 0
+  if (launch && every !== 'never') setTimeout(() => void checkForUpdate(false), 15_000)
+  if (interval > 0) timer = setInterval(() => void checkForUpdate(false), interval)
+  engineLog('update', `schedule: ${every}${interval ? ` (every ${Math.round(interval / 60000)} min)` : ''}`)
+  if (!resumeHooked) {
+    resumeHooked = true
+    // A laptop asleep for the night should not wait another full interval after it wakes.
+    powerMonitor.on('resume', () => {
+      const ms = UPDATE_CHECK_MS[getSettings().updateCheckEvery] ?? 0
+      if (ms > 0 && Date.now() - lastCheckAt > ms) void checkForUpdate(false)
+    })
   }
-  setTimeout(tick, 15_000)
-  timer = setInterval(tick, 6 * 60 * 60 * 1000)
 }

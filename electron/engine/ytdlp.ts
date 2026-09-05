@@ -11,7 +11,7 @@ import { basename } from 'node:path'
 import { run } from './run'
 import { app } from 'electron'
 import { getSecret } from '../secrets'
-import { downloadFast } from './fastpath'
+import { downloadFast, FastPathUnavailable } from './fastpath'
 import { tm } from '../i18n'
 import { cpus } from 'node:os'
 import { spawn } from 'node:child_process'
@@ -372,7 +372,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
         job.media.fetchedAt = fresh.fetchedAt
       }
       const aria2c = settings.useAria2 ? resolveTool('aria2c') : null
-      const r = await downloadFast(
+      const fast = () => downloadFast(
         {
           media: job.media, format, formatArgs: buildFormatArgs(format, settings), destination: job.destination,
           outputTemplate: job.nameTag ? `%(title).120B [${job.nameTag}].%(ext)s` : '%(title).120B.%(ext)s',
@@ -380,6 +380,20 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
         },
         { bin, common: commonArgs(settings, job.media.url || job.url), aria2: aria2c ? aria2Flags(aria2c, settings) : null, env: engineEnv(), tempDir: tempDirFor(job.destination) },
       )
+      let r: Awaited<ReturnType<typeof fast>>
+      try {
+        r = await fast()
+      } catch (e) {
+        // Stream URLs saved at fetch time expire on some sites (SoundCloud within minutes): one fresh
+        // extraction, then the same fast path again, before anything falls back to the classic pipeline.
+        const msg = (e as Error).message
+        if (e instanceof FastPathUnavailable || job.signal?.aborted || msg === 'cancelled' || !/403|expired|HTTP Error 4/i.test(msg)) throw e
+        job.onLog?.(`fast: saved stream URLs rejected (${msg.trim().split('\n').pop()}); refetching and retrying`)
+        const fresh = await fetchMetadata(job.media.url || job.url, settings, { signal: job.signal, noPlaylist: true })
+        job.media.infoJsonPath = fresh.infoJsonPath
+        job.media.fetchedAt = fresh.fetchedAt
+        r = await fast()
+      }
       return { outputPath: r.outputPath, skipped: r.skipped, codecApplied: true }
     } catch (e) {
       const msg = (e as Error).message
@@ -421,7 +435,9 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     emittedMax = pct
     return { ...p, percent: Math.round(pct * 10) / 10, downloadedBytes: done, totalBytes: known || undefined, part: { index: parts.length, count: Math.max(expectedParts, parts.length) } }
   }
-  const launch = () => run(bin, args, {
+  // Every run of this job, including the retries below, goes through the same line parser so TXOUT,
+  // progress and "already downloaded" are read whichever attempt produces them.
+  const launch = (argv: string[] = args) => run(bin, argv, {
     signal: inner.signal,
     pathPrepend: toolDirs(),
     env: engineEnv(),
@@ -486,13 +502,15 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     // Sign-in check on the download itself: one more run with the PO-token helper engaged.
     job.onLog?.('sign-in check on download; retrying once with the PO-token helper')
     const withPot = [...commonArgs(settings, job.media.url || job.url, true), ...args.slice(commonArgs(settings, job.media.url || job.url).length)]
-    res = await run(bin, withPot, { signal: inner.signal, pathPrepend: toolDirs(), env: engineEnv(), idleTimeoutMs: 10 * 60 * 1000, onLine: (l) => job.onLog?.(l) }).done
+    parts.length = 0
+    res = await launch(withPot)
   }
   if (res.code !== 0 && infoFresh && !res.stalled && /403|expired|Requested format is not available|HTTP Error 4/i.test(res.stderr)) {
     // Saved URLs went stale: extract again once, the slow-but-sure way.
     job.onLog?.('saved info JSON rejected by the server; refetching')
     const fresh = [...args.slice(0, args.length - infoArgs.length), ...urlArgs]
-    res = await run(bin, fresh, { signal: inner.signal, pathPrepend: toolDirs(), env: engineEnv(), idleTimeoutMs: 10 * 60 * 1000, onLine: (l) => job.onLog?.(l) }).done
+    parts.length = 0
+    res = await launch(fresh)
   }
   if (res.stalled) {
     const stage = STAGE_NAME[lastStage] ?? lastStage

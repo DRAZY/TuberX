@@ -11,7 +11,7 @@ import type { TuberDb } from '../db/database'
 import { checkAllTools } from '../engine/tools'
 import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
-import { canInstallInPlace, checkForUpdate, installUpdate, updateStatus } from '../appUpdate'
+import { canInstallInPlace, checkForUpdate, installUpdate, scheduleUpdateChecks, updateStatus } from '../appUpdate'
 import { bestEncoder } from '../engine/encoders'
 import { exportSegment, splitByMarks, writeChapters } from '../engine/transcode'
 import { mediaUrl } from '../media'
@@ -332,6 +332,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
     delete (patch as Partial<Settings>).hasLoginPassword // derived, never stored
     const next = patchSettings(patch)
     if (patch.destination) db.touchDestination(patch.destination)
+    if (patch.updateCheckEvery !== undefined) scheduleUpdateChecks(false)
     const out = withDerived(next)
     send('settings:changed', out)
     return out

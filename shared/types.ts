@@ -201,8 +201,8 @@ export interface Settings {
   /** Browser identity yt-dlp presents; phones sometimes get formats or pages desktops do not. */
   userAgent: 'default' | 'desktop' | 'ios' | 'android'
   autoUpdateEngine: boolean
-  /** Check GitHub Releases for a new TuberX build at launch and every six hours. */
-  autoCheckUpdates: boolean
+  /** When to ask GitHub Releases for a new TuberX build: always at launch, then on this schedule. */
+  updateCheckEvery: UpdateCheckEvery
   /** UI language: 'auto' follows the system locale, otherwise one of the shipped locales. */
   language: 'auto' | Locale
   /** Bumped when a default changes in a way existing installs should adopt. */
@@ -241,9 +241,9 @@ export const DEFAULT_SETTINGS: Settings = {
   videoPassword: '',
   userAgent: 'default',
   autoUpdateEngine: true,
-  autoCheckUpdates: true,
+  updateCheckEvery: 'hour',
   language: 'auto',
-  settingsVersion: 13,
+  settingsVersion: 14,
 }
 
 /** Events the main process pushes to the renderer. */
@@ -272,10 +272,14 @@ export interface MainEvents {
   'ui:rename': { rowId: string }
   /** A sleep or shutdown is about to happen; the renderer shows the countdown with a Cancel. `seconds` 0 = cancelled. */
   'power:countdown': { action: 'sleep' | 'shutdown'; seconds: number }
-  'toast': { kind: ToastKind; message: string }
+  'toast': { kind: ToastKind; message: string; action?: 'update' }
 }
 
 /** App-update state pushed to the renderer. */
+export type UpdateCheckEvery = 'hour' | 'sixHours' | 'day' | 'launch' | 'never'
+/** Repeat interval per setting; 0 = only the launch check. */
+export const UPDATE_CHECK_MS: Record<UpdateCheckEvery, number> = { hour: 60 * 60 * 1000, sixHours: 6 * 60 * 60 * 1000, day: 24 * 60 * 60 * 1000, launch: 0, never: 0 }
+
 export interface UpdateStatus {
   state: 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error'
   current: string

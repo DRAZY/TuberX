@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { t } from '@/lib/i18n'
 import { ref } from 'vue'
 import type { MediaItem, ToastKind } from '@shared/types'
 
@@ -8,6 +9,8 @@ export interface Toast {
   id: number
   kind: ToastKind
   message: string
+  /** A button on the toast; a toast with an action stays until dismissed or acted on. */
+  action?: { label: string; run: () => void }
 }
 
 export interface PlaylistPromptState {
@@ -52,14 +55,11 @@ export const useUiStore = defineStore('ui', () => {
     toasts.value = toasts.value.filter((t) => t.id !== id)
   }
 
-  function toast(kind: ToastKind, message: string): void {
+  function toast(kind: ToastKind, message: string, action?: Toast['action']): void {
     if (!message) return
     const id = nextToastId++
-    toasts.value.push({ id, kind, message })
-    timers.set(
-      id,
-      setTimeout(() => dismiss(id), TOAST_MS),
-    )
+    toasts.value.push({ id, kind, message, action })
+    if (!action) timers.set(id, setTimeout(() => dismiss(id), TOAST_MS))
   }
 
   /** Row whose finished file the trim view is editing. */
@@ -105,7 +105,9 @@ export const useUiStore = defineStore('ui', () => {
   function bind(): () => void {
     if (typeof window === 'undefined' || !window.tuberx) return () => {}
     try {
-      return window.tuberx.on('toast', (p) => toast(p.kind, p.message))
+      return window.tuberx.on('toast', (p) =>
+        toast(p.kind, p.message, p.action === 'update' ? { label: t('update.download'), run: () => void window.tuberx.update.install() } : undefined),
+      )
     } catch {
       return () => {}
     }

@@ -30,6 +30,14 @@ const TONE: Record<ToastKind, string> = {
       >
         <span class="min-w-0 break-words">{{ toast.message }}</span>
         <button
+          v-if="toast.action"
+          type="button"
+          class="shrink-0 rounded-md bg-tx-accent px-2 py-0.5 text-[11px] font-semibold text-white hover:opacity-90"
+          @click="toast.action.run(); ui.dismiss(toast.id)"
+        >
+          {{ toast.action.label }}
+        </button>
+        <button
           type="button"
           class="shrink-0 opacity-60 hover:opacity-100"
           :title="t('common.dismiss')"

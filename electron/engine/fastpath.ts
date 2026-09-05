@@ -67,9 +67,13 @@ export class FastPathUnavailable extends Error {}
 
 const TRANSFER_IDLE_MS = 90 * 1000
 const AUDIO_KINDS = new Set<OutputKind>(['mp3', 'm4a', 'wav', 'm4r'])
-/** Codecs an MP4 file can carry and every mainstream player opens; anything else is encoded. */
-const MP4_VIDEO = /^(h264|avc1?|hevc|h265|hvc1|av1|mpeg4)$/
-const MP4_AUDIO = /^(aac|mp3|mp4a|ac3|eac3|alac)$/
+/**
+ * Codecs an MP4 file can carry. VP9 and AV1 are in the ISO BMFF registry and are what YouTube serves above
+ * 1080p and for HDR; they are copied, as they always were. Only a codec known to be outside the list
+ * (VP8, Theora …) is encoded, and an unrecognised name is copied: a transcode is never a guess.
+ */
+const MP4_VIDEO = /^(h264|avc1?|hevc|h265|hvc1|av1|av01|vp9|vp09|mpeg4|mjpeg)$/
+const MP4_AUDIO = /^(aac|mp3|mp4a|ac3|eac3|alac|flac)$/
 const clean = (t: string) => t.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60) || 'media'
 
 export async function downloadFast(job: FastJob, ctx: FastContext): Promise<FastResult> {
@@ -299,7 +303,7 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
     // VP8/VP9 sources (WebM-only sites) would fail a remux into MP4, so they are encoded to H.264 here.
     codecArgs = ['-c:v:0', 'copy']
     const wanted = job.settings.videoCodec
-    const fits = !!vinfo.vcodec && MP4_VIDEO.test(vinfo.vcodec)
+    const fits = !vinfo.vcodec || MP4_VIDEO.test(vinfo.vcodec)
     const forcedNames = wanted === 'h264' ? ['h264', 'avc1'] : ['hevc', 'h265', 'hvc1']
     const needs = wanted === 'auto' ? (fits ? null : 'h264') : vinfo.vcodec && forcedNames.includes(vinfo.vcodec) ? null : wanted
     if (needs) {
@@ -311,10 +315,10 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
     }
     const acodec = ainfo.acodec ?? byId.get(ids[1] ?? ids[0])?.acodec?.replace(/\..*$/, '')
     const hasAudio = !!audioIn || !!vinfo.acodec
-    audioArgs = hasAudio ? (acodec && MP4_AUDIO.test(acodec) ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', '160k']) : []
+    audioArgs = hasAudio ? (!acodec || MP4_AUDIO.test(acodec) ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', '160k']) : []
     subArgs = subPaths.length ? ['-c:s', 'mov_text', ...subPaths.flatMap((p, i) => ['-metadata:s:s:' + i, `language=${lang(p)}`])] : []
     coverArgs = coverPath ? ['-c:v:1', jpeg ? 'copy' : 'mjpeg', '-disposition:v:1', 'attached_pic'] : []
-    tmpExt = '.mp4'
+    tmpExt = extname(finalPath) || '.mp4' // mp4 / m4v / mov by now
   }
 
   // Global tags come from the stream file (nothing of note) and are overridden below; chapter titles travel
