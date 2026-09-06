@@ -1,0 +1,19 @@
+# Dependabot: weekly dependency PRs, grouped so one PR carries the routine bumps.
+# Electron and electron-builder get their own PRs: a Chromium/Node bump goes through the release gate first.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      tooling:
+        patterns: ["vite*", "@vitejs/*", "typescript", "vue-tsc", "tailwindcss", "postcss", "autoprefixer", "esbuild", "@types/*"]
+      app:
+        patterns: ["vue", "pinia", "electron-store", "electron-updater"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
