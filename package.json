@@ -20,9 +20,9 @@
     "pot:fetch": "bun scripts/fetch-pot.ts"
   },
   "dependencies": {
-    "electron-store": "^10.1.0",
+    "electron-store": "^11.0.2",
     "electron-updater": "^6.6.2",
-    "pinia": "^3.0.3",
+    "pinia": "^4.0.3",
     "vue": "^3.5.18"
   },
   "devDependencies": {
