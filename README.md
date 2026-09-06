@@ -74,7 +74,7 @@ TuberX has no site list of its own: every `http(s)` link goes to the bundled [yt
 - **Some sites need identity.** Instagram, Patreon, private Vimeo, age-gated YouTube and most of X need your cookies (Settings → Network: from Chrome, Edge, Firefox or Brave, or an imported cookies.txt) or a site login (Settings → Access). Nothing is sent anywhere but to that site.
 - **DRM services are out** (Netflix, Disney+, Spotify and the like). yt-dlp does not decrypt DRM and neither does TuberX.
 
-Proven on every release by the gate (`bun scripts/release-gate.ts`): YouTube (videos, Shorts, playlists, channels, subtitles, every quality rung and every audio kind), SoundCloud, Dailymotion (HLS), 9gag (WebM-only sources), archive.org. Also downloaded in the 30-site sweep behind 0.3.2: Reddit, Bilibili, Twitch clips, Streamable, VK, Mixcloud, Loom, Dropbox, NYTimes, Pinterest, Substack, iHeart, Instagram, Nebula, Vimeo, Imgur and tumblr.
+**Tested and working with TuberX:** YouTube (videos, Shorts, playlists, channels, subtitles, every quality rung and every audio format), Vimeo, Dailymotion, SoundCloud, Mixcloud, Instagram, Reddit, Bilibili, Twitch clips, Streamable, VK, Loom, Dropbox, The New York Times, Pinterest, Substack, iHeartRadio, Nebula, 9gag, Imgur, tumblr and the Internet Archive.
 
 ## Install
 
