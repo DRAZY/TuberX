@@ -79,7 +79,7 @@ TuberX has no site list of its own: every `http(s)` link goes to the bundled [yt
 ## Install
 
 - **Windows 10/11 (x64):** run `TuberX-Setup-<version>-x64.exe`, or use `TuberX-Portable-<version>-x64.exe` with no install. The portable build is self-extracting, so allow it a moment on launch while it expands. Both keep settings, history and logs in `%APPDATA%\TuberX`.
-- **macOS (Apple silicon):** open the `.dmg` and drag TuberX to Applications.
+- **macOS 13 or newer (Apple silicon):** open the `.dmg` and drag TuberX to Applications.
 
 TuberX checks GitHub Releases for a new version 15 seconds after it opens and then every hour (Settings → About lets you pick every six hours, daily, launch only, or never), and again when the machine wakes from sleep. A new build raises a message in the app with a "Get the update" button, marks the Settings icon, and shows under Settings → About; every check is written to the engine log. The Windows installer build downloads and applies the update in place; the portable exe and the Mac build open the release page for the new file. Nothing installs without you, and the check can be turned off.
 
