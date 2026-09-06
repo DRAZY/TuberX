@@ -1,0 +1,21 @@
+# Typecheck, unit tests and locale parity on every push and pull request. The download gate
+# (scripts/release-gate.ts) needs a live network and the desktop app, so it runs before each release, not here.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun scripts/i18n-check.ts
