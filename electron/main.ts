@@ -17,7 +17,9 @@ import { tm } from './i18n'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
 // A dev instance must never share settings, database or single-instance lock with an installed TuberX.
-if (!app.isPackaged) app.setPath('userData', join(app.getPath('appData'), 'TuberX-dev'))
+// TUBERX_USER_DATA lets a packaged build be smoke-tested beside an installed one for the same reason (testing only).
+if (process.env.TUBERX_USER_DATA) app.setPath('userData', process.env.TUBERX_USER_DATA)
+else if (!app.isPackaged) app.setPath('userData', join(app.getPath('appData'), 'TuberX-dev'))
 registerMediaScheme()
 
 let win: BrowserWindow | null = null
