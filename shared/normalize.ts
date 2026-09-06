@@ -68,16 +68,35 @@ export function snapHeight(h: number): number {
   return best
 }
 
+/**
+ * The quality rung a format belongs to, as a viewer would name it. YouTube says it outright
+ * (format_note "2160p", "1080p60 HDR"). Otherwise the rung is what a 16:9 frame of the same long side
+ * would be called, so an ultra-wide 3840×1608 is 4K and a portrait 1080×1920 is 1080p, not the raw
+ * pixel height snapped to the nearest standard.
+ */
+export function rungOf(f: YtDlpFormat): number | undefined {
+  const note = f.format_note?.match(/^(\d{3,4})p/)
+  if (note) return Number(note[1])
+  if (!f.height) return undefined
+  if (!f.width) return snapHeight(f.height)
+  const short = Math.min(f.width, f.height)
+  const long = Math.max(f.width, f.height)
+  return snapHeight(Math.max(short, Math.round((long * 9) / 16)))
+}
+
 export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo: boolean, hasSubs = false): FormatOption[] {
   const out: FormatOption[] = []
   // Best audio-only stream: its size is added to every video rung that ships without audio, so the
   // picker's estimate is the finished file, not the video track alone.
   const audioOnly = (formats ?? []).filter((f) => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
   const audioSize = audioOnly.reduce((m, f) => Math.max(m, f.filesize ?? f.filesize_approx ?? 0), 0) || undefined
-  const byHeight = new Map<number, { fps: number; size?: number }>()
+  // Keyed by rung. `res` is the rung's real smallest dimension, which is what yt-dlp's `res` sort key
+  // compares (1608 for a 3840×1608 "4K" stream), so a pick lands on this rung and not a neighbour.
+  const byHeight = new Map<number, { fps: number; size?: number; res: number }>()
   for (const f of formats ?? []) {
     if (!f.height || f.vcodec === 'none') continue // a height with an unreported codec is still video (archive.org, generic pages)
-    const h = snapHeight(f.height)
+    const h = rungOf(f)!
+    const res = f.width ? Math.min(f.width, f.height) : f.height
     const prev = byHeight.get(h)
     const fps = f.fps ?? 30
     const own = f.filesize ?? f.filesize_approx
@@ -85,8 +104,8 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
     const size = own !== undefined ? own + (muxed ? 0 : audioSize ?? 0) : undefined
     // Highest frame rate wins the rung; among equals, the variant that reports a size (HLS/DASH
     // manifests list the same rung without one).
-    if (!prev || fps > prev.fps + 0.5) byHeight.set(h, { fps, size })
-    else if (Math.abs(fps - prev.fps) <= 0.5 && prev.size === undefined && size !== undefined) byHeight.set(h, { fps: prev.fps, size })
+    if (!prev || fps > prev.fps + 0.5) byHeight.set(h, { fps, size, res: Math.max(res, prev?.res ?? 0) })
+    else if (Math.abs(fps - prev.fps) <= 0.5) byHeight.set(h, { fps: prev.fps, size: prev.size ?? size, res: Math.max(res, prev.res) })
   }
 
   if (hasVideo) {
@@ -112,7 +131,7 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
         fps: meta.fps,
         filesize: meta.size,
         selector: 'bv*+ba/b',
-        sort: `res:${h}`,
+        sort: `res:${meta.res}`,
       })
     }
     out.push({ id: 'vo:best', kind: 'video-only', label: 'Video only (no audio)', selector: 'bv*', sort: 'res' })

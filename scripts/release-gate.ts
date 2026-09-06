@@ -25,9 +25,13 @@ interface Case {
   encode: 'never' | 'required' | 'either'
   maxDuration?: number
   subtitles?: boolean
+  /** frame width the output must have (rung correctness on non-16:9 sources) */
+  width?: number
 }
 const CASES: Case[] = [
   { name: 'YouTube 1440p (VP9 copy)', url: 'https://www.youtube.com/watch?v=LXb3EKWsInQ', format: 'v:1440', ext: 'mp4', vcodec: /^vp9$/, acodec: /^aac$/, cover: true, encode: 'never' },
+  { name: 'YouTube ultra-wide 4K rung', url: 'https://youtu.be/icyft1dDr6g', format: 'v:2160', ext: 'mp4', vcodec: /^(vp9|av1)$/, acodec: /^aac$/, cover: true, encode: 'never', width: 3840 },
+  { name: 'YouTube ultra-wide 1080p rung', url: 'https://youtu.be/icyft1dDr6g', format: 'v:1080', ext: 'mp4', vcodec: /^h264$/, acodec: /^aac$/, cover: true, encode: 'never', width: 1920 },
   { name: 'YouTube 1080p60 (H.264 copy)', url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', format: 'v:1080', ext: 'mp4', vcodec: /^h264$/, acodec: /^aac$/, cover: true, encode: 'never' },
   { name: 'YouTube subtitles', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', format: 'v:best', ext: 'mp4', vcodec: /^h264$/, cover: true, encode: 'never', subtitles: true },
   { name: 'YouTube → MP3', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', format: 'a:mp3', ext: 'mp3', acodec: /^mp3$/, cover: true, encode: 'either' },
@@ -118,6 +122,8 @@ for (let round = 0; ; round++) {
     const cover = streams.some((s) => s.kind === 'Video' && /attached pic/.test(s.rest))
     const subs = streams.some((s) => s.kind === 'Subtitle')
     const dur = probe.match(/Duration: (\d+):(\d+):([\d.]+)/)
+    const frame = video?.rest.match(/, (\d{3,5})x(\d{3,5})/)
+    const width = frame ? Number(frame[1]) : undefined
     const seconds = dur ? Number(dur[1]) * 3600 + Number(dur[2]) * 60 + Number(dur[3]) : undefined
     // the job's own fast-path summary line, matched by the row id prefix used in engine.log
     const jobLines = log.split('\n').filter((l) => l.includes(`[${x.id.slice(0, 8)}]`) && l.includes('fast: '))
@@ -134,9 +140,10 @@ for (let round = 0; ; round++) {
     if (c.encode === 'never' && encoded) problems.push('VIDEO WAS ENCODED (must be copied)')
     if (c.encode === 'required' && !encoded) problems.push('video was not encoded')
     if (c.maxDuration && seconds && seconds > c.maxDuration) problems.push(`duration ${seconds}s > ${c.maxDuration}s`)
+    if (c.width && width !== c.width) problems.push(`width ${width ?? '?'} ≠ ${c.width}`)
     if (!doneLine) problems.push('fast path did not run (classic fallback)')
     if (c.encode === 'never' && Number.isFinite(finish) && finish > 5) problems.push(`finish ${finish}s for a copy`)
-    results.push({ c, ok: !problems.length, detail: problems.join('; ') || `${video?.codec ?? '-'}/${audio?.codec ?? '-'}${cover ? ' +cover' : ''}${subs ? ' +subs' : ''}${encoded ? ' encoded' : ' copy'} finish ${finish}s`, seconds: Math.round((Date.now() - t1) / 1000) })
+    results.push({ c, ok: !problems.length, detail: problems.join('; ') || `${video?.codec ?? '-'}${width ? ` ${frame![1]}x${frame![2]}` : ''}/${audio?.codec ?? '-'}${cover ? ' +cover' : ''}${subs ? ' +subs' : ''}${encoded ? ' encoded' : ' copy'} finish ${finish}s`, seconds: Math.round((Date.now() - t1) / 1000) })
   }
   void before
 }

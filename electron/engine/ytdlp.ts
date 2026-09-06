@@ -12,6 +12,7 @@ import { run } from './run'
 import { app } from 'electron'
 import { getSecret } from '../secrets'
 import { downloadFast, FastPathUnavailable } from './fastpath'
+import { engineLog } from './log'
 import { tm } from '../i18n'
 import { cpus } from 'node:os'
 import { spawn } from 'node:child_process'
@@ -121,7 +122,10 @@ export async function fetchMetadata(url: string, settings: Settings, opts: Fetch
         return { ...media, url: player, webpageUrl: url, extraArgs: ['--referer', 'https://vimeo.com/'] }
       }
     }
-    throw new Error(friendlyError(res.stderr))
+    // An empty stderr with a non-zero exit is a killed or crashed process, not a site message; say so.
+    const msg = res.stderr.trim() ? friendlyError(res.stderr) : res.stalled ? tm('error.stalledDownload') : `${tm('error.unknown')} (yt-dlp exit ${res.code ?? 'signal'}, no message)`
+    engineLog('fetch', `${safeHost(url)}: failed: ${msg}${res.stderr.trim() ? '' : ` [stdout ${res.stdout.length} bytes]`}`)
+    throw new Error(msg)
   }
   return parseJson(res.stdout, url)
 }

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
 import { basename, extname, join } from 'node:path'
-import { appendFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { app } from 'electron'
 import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
@@ -10,6 +10,7 @@ import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
 import { convertVideo } from '../engine/transcode'
 import { updateEngine } from '../engine/updater'
 import { tm } from '../i18n'
+import { engineLog } from '../engine/log'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -428,23 +429,7 @@ export class QueueManager extends EventEmitter {
 }
 
 /** Engine log: every yt-dlp line for every download, rotated at 5 MB. The support artifact for "it's slow". */
-export function engineLogPath(): string {
-  return join(app.getPath('userData'), 'logs', 'engine.log')
-}
-export function engineLog(rowId: string, line: string) {
-  try {
-    const file = engineLogPath()
-    mkdirSync(join(file, '..'), { recursive: true })
-    try {
-      if (statSync(file).size > 5 * 1024 * 1024) renameSync(file, file + '.1')
-    } catch {
-      /* no file yet */
-    }
-    appendFileSync(file, `${new Date().toISOString()} [${rowId.slice(0, 8)}] ${line}\n`)
-  } catch {
-    /* logging never breaks a download */
-  }
-}
+export { engineLog, engineLogPath } from '../engine/log'
 
 /** Remove the temp-dir leftovers of a stopped download (.part/.ytdl/.aria2 and per-format intermediates). */
 export function cleanupPartials(title: string, destination?: string): void {
