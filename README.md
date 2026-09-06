@@ -141,7 +141,7 @@ bun scripts/fetch-pot.ts            # PO-token helper for both platforms
 bun run dev                          # Vite + Electron
 bun test                             # unit tests
 bun scripts/site-check.ts           # resolve one public URL per supported site
-bun scripts/release-gate.ts <dir>   # 12 end-to-end downloads through the dev app, asserted with ffmpeg (TUBERX_CDP=1 bun run dev first)
+bun scripts/release-gate.ts         # 14 end-to-end downloads through the dev app, asserted with ffmpeg, temp files removed after (TUBERX_CDP=1 bun run dev first)
 bun run build:win                    # Windows installer + portable exe
 bun run build:mac                    # macOS arm64 dmg + zip
 ```

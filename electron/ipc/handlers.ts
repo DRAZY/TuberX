@@ -123,8 +123,9 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('queue:expandPlaylist', (_e, rowId: string, urls: string[]) => queue.expandPlaylist(rowId, urls))
 
   // Right-click paste: the main process reads the clipboard so no renderer permission prompt is involved.
-  const pasteClipboard = (download: boolean) => {
-    const urls = extractUrls(clipboard.readText())
+  // Electron 44: clipboard.readText() is asynchronous.
+  const pasteClipboard = async (download: boolean) => {
+    const urls = extractUrls(await clipboard.readText())
     if (!urls.length) {
       send('toast', { kind: 'info', message: tm('toast.noLinkClipboard') })
       return { found: 0, added: 0 }
@@ -135,7 +136,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   }
   ipcMain.handle('queue:pasteClipboard', (_e, download: boolean) => pasteClipboard(download))
 
-  ipcMain.handle('menu:show', (e, kind: 'app' | 'row' | 'edit', rowId?: string) => {
+  ipcMain.handle('menu:show', async (e, kind: 'app' | 'row' | 'edit', rowId?: string) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     if (kind === 'edit') {
       // Standard edit menu for text fields; the Add-links box is the main customer.
@@ -148,7 +149,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
       ]).popup({ window: win })
       return
     }
-    const hasLink = extractUrls(clipboard.readText()).length > 0
+    const hasLink = extractUrls(await clipboard.readText()).length > 0
     const row = rowId ? queue.list().find((r) => r.id === rowId) : undefined
     const items: Electron.MenuItemConstructorOptions[] = []
     if (kind === 'row' && row) {

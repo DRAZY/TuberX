@@ -19,7 +19,9 @@ export function mediaUrl(path: string): string {
 }
 
 export function registerMediaScheme(): void {
-  protocol.registerSchemesAsPrivileged([{ scheme: MEDIA_SCHEME, privileges: { stream: true, supportFetchAPI: true, bypassCSP: true, secure: true } }])
+  // standard + corsEnabled: Chromium 152 (Electron 44) only lets <video> load from a standard scheme, and only
+  // lets a fetch-capable custom scheme answer cross-origin loads (the renderer is file:// or the dev server) with CORS.
+  protocol.registerSchemesAsPrivileged([{ scheme: MEDIA_SCHEME, privileges: { standard: true, stream: true, supportFetchAPI: true, corsEnabled: true, bypassCSP: true, secure: true } }])
 }
 
 export function serveMedia(): void {
@@ -43,7 +45,7 @@ export function serveMedia(): void {
         end = size - 1
       }
       end = Math.min(end, size - 1)
-      if (start > end || start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+      if (start > end || start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}`, 'Access-Control-Allow-Origin': '*' } })
     }
     const body = Readable.toWeb(createReadStream(path, { start, end })) as unknown as ReadableStream
     return new Response(body, {
@@ -51,6 +53,9 @@ export function serveMedia(): void {
       headers: {
         'Content-Type': type,
         'Accept-Ranges': 'bytes',
+        // The only client is this app's own renderer; the scheme serves nothing but local files it was handed.
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
         'Content-Length': String(end - start + 1),
         ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}),
       },

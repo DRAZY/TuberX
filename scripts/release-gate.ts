@@ -1,7 +1,7 @@
 /**
  * Release gate: end-to-end downloads through the running dev app, with assertions on the files it writes.
  * No release is published unless this passes. Start the app first: `TUBERX_CDP=1 bun run dev`, then
- * `bun scripts/release-gate.ts <destination folder>` (the folder is emptied first).
+ * `bun scripts/release-gate.ts [destination folder] [--keep]`; downloads go to a temp folder that is removed at the end.
  *
  * The cases are the paths users actually hit, chosen so a change to the engine cannot ship untested:
  * YouTube above 1080p (VP9, must be copied, never encoded), 1080p H.264 copy, every audio kind, a
@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 
 interface Case {
   name: string
@@ -45,10 +45,15 @@ const CASES: Case[] = [
   { name: 'archive.org silent film', url: 'https://archive.org/details/Cops1922', format: 'v:360', ext: 'mp4', vcodec: /^(h264|theora|mpeg4)$/, acodec: undefined, cover: true, encode: 'either' },
 ]
 
-const dest = process.argv[2]
-if (!dest) throw new Error('usage: bun scripts/release-gate.ts <destination folder>')
+// Downloads land in a throwaway folder (default: this session's temp dir) and are deleted when the run ends,
+// so a gate run leaves nothing behind. Pass a folder to choose the place; pass --keep to inspect the files afterwards.
+const args = process.argv.slice(2)
+const keep = args.includes('--keep')
+const dest = args.find((a) => !a.startsWith('--')) ?? join(process.env.TMPDIR ?? tmpdir(), `tuberx-gate-${process.pid}`)
 rmSync(dest, { recursive: true, force: true })
 mkdirSync(dest, { recursive: true })
+const cleanup = () => { if (!keep) rmSync(dest, { recursive: true, force: true }) }
+process.on('exit', cleanup)
 const ffmpeg = join(import.meta.dir, '..', 'resources', 'bin', process.platform, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
 const logPath = join(homedir(), 'Library', 'Application Support', 'TuberX-dev', 'logs', 'engine.log')
 
