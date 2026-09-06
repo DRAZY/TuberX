@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { LaterEntry } from '@shared/types'
 import { guard, listen } from '@/lib/ipc'
+import { useSelection } from '@/lib/selection'
 import { useUiStore } from '@/stores/ui'
 import { t } from '@/lib/i18n'
 
@@ -12,6 +13,8 @@ export const useLaterStore = defineStore('later', () => {
   const loaded = ref(false)
 
   const count = computed(() => entries.value.length)
+  const selection = useSelection()
+  watch(entries, (list) => selection.prune(list.map((e) => e.id)))
 
   async function refresh(): Promise<void> {
     loading.value = true
@@ -57,7 +60,17 @@ export const useLaterStore = defineStore('later', () => {
     })
   }
 
+  async function removeSelected(): Promise<void> {
+    const ids = [...selection.selected.value]
+    selection.clear()
+    await remove(ids)
+  }
+  function selectAll(): void {
+    selection.selectAll(entries.value.map((e) => e.id))
+  }
+
   return {
+    selected: selection.selected, isSelected: selection.isSelected, clickSelect: selection.click, selectAll, clearSelection: selection.clear, removeSelected,
     entries,
     loading,
     loaded,

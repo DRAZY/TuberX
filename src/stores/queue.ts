@@ -19,6 +19,7 @@ export const useQueueStore = defineStore('queue', () => {
   )
   const startableRows = computed(() => rows.value.filter((r) => STARTABLE.includes(r.status)))
   const hasStartable = computed(() => startableRows.value.length > 0)
+  const finishedCount = computed(() => rows.value.filter((r) => r.status === 'done' || r.status === 'skipped').length)
 
   const statusText = computed(() => {
     if (!count.value) return ''
@@ -93,6 +94,10 @@ export const useQueueStore = defineStore('queue', () => {
     await guard(() => window.tuberx.reorderRows(ids))
   }
 
+  /** Drop every finished row (done or skipped) from the list; files stay where they are. */
+  async function clearFinished(): Promise<void> {
+    await remove(rows.value.filter((r) => r.status === 'done' || r.status === 'skipped').map((r) => r.id))
+  }
   async function remove(ids: string[]): Promise<void> {
     if (!ids.length) return
     await guard(() => window.tuberx.removeRows(ids))
@@ -178,6 +183,8 @@ export const useQueueStore = defineStore('queue', () => {
     activeCount,
     startableRows,
     hasStartable,
+    finishedCount,
+    clearFinished,
     statusText,
     byId,
     isSelected,

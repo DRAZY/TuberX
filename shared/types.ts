@@ -327,7 +327,7 @@ export interface TuberXApi {
   /** Read the OS clipboard in the main process and add every URL found. */
   pasteClipboard(download?: boolean): Promise<{ found: number; added: number }>
   /** Show the native right-click menu for the empty area or a row. */
-  contextMenu(kind: 'app' | 'row' | 'edit', rowId?: string): Promise<void>
+  contextMenu(kind: 'app' | 'row' | 'edit', rowId?: string, selection?: string[]): Promise<void>
 
   later: {
     list(): Promise<LaterEntry[]>
@@ -386,6 +386,8 @@ export interface TuberXApi {
   media: {
     /** A URL the renderer can play for a local file (custom protocol; range requests supported). */
     url(path: string): Promise<string>
+    /** What is in the file, read by ffmpeg: lets the trim dialog work even when the preview cannot decode it. */
+    info(path: string): Promise<{ duration?: number; vcodec?: string; acodec?: string }>
   }
   trim: {
     /** Cut a segment into a new file beside the source; resolves to its path. */

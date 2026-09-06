@@ -31,6 +31,12 @@ export const it: MessageTable = {
   'footer.applyToAllTitle': 'Applica un formato a tutte le righe',
   'footer.applyToAll': 'Applica a tutti…',
   'footer.downloadAll': 'Scarica tutto',
+  'footer.removeSelected': 'Rimuovi selezionati ({n})',
+  'footer.clearFinished': 'Rimuovi completati ({n})',
+  'menu.removeSelected': 'Rimuovi selezionati ({n}) dall’elenco',
+  'history.removeSelected': 'Rimuovi selezionati ({n})',
+  'later.removeSelected': 'Rimuovi selezionati ({n})',
+  'trim.previewUnavailable': 'L’anteprima non può riprodurre questo file qui (risoluzione molto alta o HDR senza decodifica hardware). Imposta i punti di inizio e fine con i campi o i pulsanti; l’esportazione funziona normalmente.',
   'folder.choose': 'Scegli cartella',
 
   'drop.pasteMore': 'Incolla o trascina altri link',

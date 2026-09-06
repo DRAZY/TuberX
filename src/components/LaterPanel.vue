@@ -37,7 +37,10 @@ function exportLinks(): void {
     </header>
 
     <div class="flex shrink-0 items-center justify-between gap-2 border-b border-tx-border px-4 py-2">
-      <span class="text-[11px] text-tx-muted">{{ t('later.saved', { n: later.count }) }}</span>
+      <span class="flex items-center gap-2 text-[11px] text-tx-muted">
+        {{ t('later.saved', { n: later.count }) }}
+        <button v-if="later.selected.size" type="button" class="tx-btn-ghost" @click="later.removeSelected()">{{ t('later.removeSelected', { n: later.selected.size }) }}</button>
+      </span>
       <span class="flex items-center gap-2">
         <button type="button" class="tx-btn-ghost" :disabled="!later.count" :title="t('later.exportTitle')" @click="exportLinks">{{ t('common.export') }}</button>
         <button type="button" class="tx-btn-ghost" :disabled="!later.count" @click="sendAll">
@@ -58,7 +61,9 @@ function exportLinks(): void {
       <li
         v-for="entry in later.entries"
         :key="entry.id"
-        class="group flex items-start gap-2.5 border-b border-tx-border px-4 py-2.5"
+        class="group flex cursor-default items-start gap-2.5 border-b border-tx-border px-4 py-2.5"
+        :class="later.isSelected(entry.id) ? 'bg-tx-row ring-1 ring-inset ring-tx-accent/60' : ''"
+        @click="later.clickSelect(entry.id, $event)"
       >
         <div class="flex h-9 w-16 shrink-0 items-center justify-center overflow-hidden rounded bg-tx-row">
           <img v-if="entry.thumbnail" :src="entry.thumbnail" alt="" class="h-full w-full object-cover" />

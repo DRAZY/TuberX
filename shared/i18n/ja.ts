@@ -31,6 +31,12 @@ export const ja: MessageTable = {
   'footer.applyToAllTitle': 'すべての行に同じ形式を適用',
   'footer.applyToAll': 'すべてに適用…',
   'footer.downloadAll': 'すべてダウンロード',
+  'footer.removeSelected': '選択項目を削除 ({n})',
+  'footer.clearFinished': '完了項目を削除 ({n})',
+  'menu.removeSelected': '選択項目 ({n}) をリストから削除',
+  'history.removeSelected': '選択項目を削除 ({n})',
+  'later.removeSelected': '選択項目を削除 ({n})',
+  'trim.previewUnavailable': 'このファイルはここではプレビュー再生できません（超高解像度、またはハードウェアデコードのない HDR）。開始点と終了点は入力欄かボタンで設定してください。書き出しは通常どおり動作します。',
   'folder.choose': 'フォルダを選択',
 
   'drop.pasteMore': 'リンクをさらに貼り付けるかドロップ',

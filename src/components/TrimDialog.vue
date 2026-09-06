@@ -26,6 +26,9 @@ const busy = ref<'mp4' | 'm4a' | 'm4r' | null>(null)
 const percent = ref(0)
 const result = ref('')
 const error = ref('')
+/** The <video> may show a frame yet never decode (8K, HDR without hardware decoding); trimming must not depend on it. */
+const preview = ref<'loading' | 'ok' | 'unavailable'>('loading')
+let previewTimer: ReturnType<typeof setTimeout> | undefined
 const unbinds: Array<() => void> = []
 
 const length = computed(() => Math.max(0, outPoint.value - inPoint.value))
@@ -45,8 +48,13 @@ function parse(text: string): number | null {
 }
 
 function onLoaded(): void {
-  duration.value = video.value?.duration ?? 0
+  const d = video.value?.duration ?? 0
+  if (Number.isFinite(d) && d > 0) duration.value = d
   if (!outPoint.value) outPoint.value = duration.value
+  preview.value = 'ok'
+}
+function onVideoError(): void {
+  preview.value = 'unavailable'
 }
 function onTime(): void {
   current.value = video.value?.currentTime ?? 0
@@ -74,6 +82,11 @@ function editOut(e: Event): void {
 function playSelection(): void {
   seek(inPoint.value)
   void video.value?.play()
+  // A decoder that never produces a frame leaves the element "playing" with nothing on screen: say so.
+  setTimeout(() => {
+    const v = video.value
+    if (v && !v.paused && v.getVideoPlaybackQuality().totalVideoFrames === 0) preview.value = 'unavailable'
+  }, 2000)
 }
 function useChapter(start: number, end: number): void {
   inPoint.value = start
@@ -108,11 +121,22 @@ function close(): void {
 }
 
 onMounted(async () => {
-  const u = await guard(() => window.tuberx.media.url(src.value))
+  const [u, info] = await Promise.all([guard(() => window.tuberx.media.url(src.value)), guard(() => window.tuberx.media.info(src.value))])
+  // The file's own duration makes Set in/out and Export usable before, or without, the preview decoding.
+  if (info?.duration && !duration.value) {
+    duration.value = info.duration
+    if (!outPoint.value) outPoint.value = info.duration
+  }
   if (u) url.value = u
+  previewTimer = setTimeout(() => {
+    if (preview.value === 'loading') preview.value = 'unavailable'
+  }, 8000)
   unbinds.push(listen('trim:progress', ({ percent: p }) => (percent.value = p)))
 })
-onBeforeUnmount(() => unbinds.forEach((u) => u()))
+onBeforeUnmount(() => {
+  unbinds.forEach((u) => u())
+  if (previewTimer) clearTimeout(previewTimer)
+})
 watch(inPoint, (v) => v > current.value && seek(v))
 </script>
 
@@ -135,7 +159,9 @@ watch(inPoint, (v) => v > current.value && seek(v))
         preload="metadata"
         @loadedmetadata="onLoaded"
         @timeupdate="onTime"
+        @error="onVideoError"
       />
+      <p v-if="preview === 'unavailable'" class="mt-1 text-[11px] leading-snug text-amber-300">{{ t('trim.previewUnavailable') }}</p>
 
       <!-- Selection bar: the highlighted span is what exports -->
       <div class="relative h-2 w-full rounded-full bg-tx-border" @click="(e) => seek(((e.offsetX) / (e.currentTarget as HTMLElement).clientWidth) * duration)">

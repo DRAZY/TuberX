@@ -17,7 +17,7 @@ const api: TuberXApi = {
   getQueue: () => invoke('queue:list'),
   expandPlaylist: (rowId, urls) => invoke('queue:expandPlaylist', rowId, urls),
   pasteClipboard: (download) => invoke('queue:pasteClipboard', download ?? false),
-  contextMenu: (kind, rowId) => invoke('menu:show', kind, rowId),
+  contextMenu: (kind, rowId, selection) => invoke('menu:show', kind, rowId, selection),
   later: {
     list: () => invoke('later:list'),
     add: (urls) => invoke('later:add', urls),
@@ -65,6 +65,7 @@ const api: TuberXApi = {
   exportLinks: (kind) => invoke('export:links', kind),
   media: {
     url: (path) => invoke('media:url', path),
+    info: (path) => invoke('media:info', path),
   },
   files: {
     rename: (pairs) => invoke('files:rename', pairs),

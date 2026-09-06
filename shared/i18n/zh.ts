@@ -31,6 +31,12 @@ export const zh: MessageTable = {
   'footer.applyToAllTitle': '对所有行应用同一格式',
   'footer.applyToAll': '应用到全部…',
   'footer.downloadAll': '全部下载',
+  'footer.removeSelected': '移除所选 ({n})',
+  'footer.clearFinished': '清除已完成 ({n})',
+  'menu.removeSelected': '从列表移除所选 ({n})',
+  'history.removeSelected': '移除所选 ({n})',
+  'later.removeSelected': '移除所选 ({n})',
+  'trim.previewUnavailable': '此文件无法在此预览播放（超高分辨率或无硬件解码的 HDR）。请用输入框或按钮设置起点和终点；导出可正常进行。',
   'folder.choose': '选择文件夹',
 
   'drop.pasteMore': '粘贴或拖入更多链接',

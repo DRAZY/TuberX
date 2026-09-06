@@ -13,7 +13,7 @@ import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
 import { canInstallInPlace, checkForUpdate, installUpdate, scheduleUpdateChecks, updateStatus } from '../appUpdate'
 import { bestEncoder } from '../engine/encoders'
-import { exportSegment, splitByMarks, writeChapters } from '../engine/transcode'
+import { exportSegment, inspect, splitByMarks, writeChapters } from '../engine/transcode'
 import { mediaUrl } from '../media'
 import { engineLog } from '../queue/manager'
 import { fetchMetadata } from '../engine/ytdlp'
@@ -136,7 +136,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   }
   ipcMain.handle('queue:pasteClipboard', (_e, download: boolean) => pasteClipboard(download))
 
-  ipcMain.handle('menu:show', async (e, kind: 'app' | 'row' | 'edit', rowId?: string) => {
+  ipcMain.handle('menu:show', async (e, kind: 'app' | 'row' | 'edit', rowId?: string, selection?: string[]) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     if (kind === 'edit') {
       // Standard edit menu for text fields; the Add-links box is the main customer.
@@ -171,7 +171,11 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
         { label: tm('menu.copyPath'), enabled: !!row.outputPath, click: () => clipboard.writeText(row.outputPath!) },
         { label: tm('menu.revealFile'), enabled: !!row.outputPath, click: () => row.outputPath && shell.showItemInFolder(row.outputPath) },
         { type: 'separator' },
-        { label: tm('menu.removeFromList'), click: () => queue.remove([row.id]) },
+        // Right-click inside a multi-selection acts on the whole selection, like Rename does.
+        ...(() => {
+          const group = selection && selection.length > 1 && selection.includes(row.id) ? selection : [row.id]
+          return [{ label: group.length > 1 ? tm('menu.removeSelected', { n: group.length }) : tm('menu.removeFromList'), click: () => queue.remove(group) }]
+        })(),
         { type: 'separator' },
       )
     }
@@ -396,6 +400,11 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('shell:openWith', async (e, path: string) => openWith(path, BrowserWindow.fromWebContents(e.sender) ?? undefined))
   ipcMain.handle('power:cancel', () => cancelPowerAction())
   ipcMain.handle('media:url', (_e, path: string) => mediaUrl(path))
+  ipcMain.handle('media:info', async (_e, path: string) => {
+    const info = await inspect(path)
+    engineLog('trim', `open: ${basename(path)} (${info.vcodec ?? 'no video'}/${info.acodec ?? 'no audio'}, ${info.duration ?? '?'} s)`)
+    return { duration: info.duration, vcodec: info.vcodec, acodec: info.acodec }
+  })
   let trimAbort: AbortController | null = null
   ipcMain.handle('trim:export', async (_e, job: { src: string; start: number; end: number; kind: 'mp4' | 'm4a' | 'm4r'; precise: boolean }) => {
     trimAbort?.abort()

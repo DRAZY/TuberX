@@ -37,6 +37,12 @@ export const en = {
   'footer.applyToAllTitle': 'Apply one format to every row',
   'footer.applyToAll': 'Apply to all…',
   'footer.downloadAll': 'Download All',
+  'footer.removeSelected': 'Remove selected ({n})',
+  'footer.clearFinished': 'Clear finished ({n})',
+  'menu.removeSelected': 'Remove selected ({n}) from list',
+  'history.removeSelected': 'Remove selected ({n})',
+  'later.removeSelected': 'Remove selected ({n})',
+  'trim.previewUnavailable': "The preview can't play this file here (very high resolution or HDR without hardware decoding). Set the in and out points with the fields or buttons; the export works normally.",
   'folder.choose': 'Choose folder',
 
   // ---- drop zone / empty state ----

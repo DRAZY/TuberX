@@ -140,15 +140,27 @@ function onKeyDown(e: KeyboardEvent): void {
 
   if (typing) return
 
+  // Select all / remove act on whichever list is in front: an open History or Later drawer, else the queue.
   if (mod && e.key.toLowerCase() === 'a') {
     e.preventDefault()
-    queue.selectAll()
+    if (ui.panel === 'history') historyStore.selectAll()
+    else if (ui.panel === 'later') laterStore.selectAll()
+    else queue.selectAll()
     return
   }
 
-  if (e.key === 'Delete' && queue.selected.size) {
-    e.preventDefault()
-    void queue.remove([...queue.selected])
+  // Mac keyboards report the delete key as Backspace; both remove the selection.
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (ui.panel === 'history' && historyStore.selected.size) {
+      e.preventDefault()
+      void historyStore.removeSelected()
+    } else if (ui.panel === 'later' && laterStore.selected.size) {
+      e.preventDefault()
+      void laterStore.removeSelected()
+    } else if (ui.panel === 'none' && queue.selected.size) {
+      e.preventDefault()
+      void queue.remove([...queue.selected])
+    }
   }
 }
 
@@ -171,7 +183,7 @@ function onContextMenu(e: MouseEvent): void {
     return
   }
   const rowEl = target?.closest<HTMLElement>('[data-row-id]')
-  void guard(() => window.tuberx.contextMenu(rowEl ? 'row' : 'app', rowEl?.dataset.rowId))
+  void guard(() => window.tuberx.contextMenu(rowEl ? 'row' : 'app', rowEl?.dataset.rowId, [...queue.selected]))
 }
 
 // --- bottom bar ------------------------------------------------------------
@@ -307,6 +319,14 @@ onBeforeUnmount(() => {
       <span class="min-w-0 flex-1 truncate text-center text-[11px] text-tx-muted">
         {{ queue.statusText }}
       </span>
+
+      <!-- Removal: the selection while there is one, otherwise the finished rows -->
+      <button v-if="queue.selected.size" type="button" class="tx-btn-ghost whitespace-nowrap" @click="queue.remove([...queue.selected])">
+        {{ t('footer.removeSelected', { n: queue.selected.size }) }}
+      </button>
+      <button v-else-if="queue.finishedCount" type="button" class="tx-btn-ghost whitespace-nowrap" @click="queue.clearFinished()">
+        {{ t('footer.clearFinished', { n: queue.finishedCount }) }}
+      </button>
 
       <select
         class="h-7 max-w-[150px] rounded border border-tx-border bg-tx-bg px-2 text-xs text-tx-text outline-none transition-colors hover:border-tx-muted focus:border-tx-accent disabled:opacity-40"
