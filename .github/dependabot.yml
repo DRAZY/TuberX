@@ -8,6 +8,16 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      # Held deliberately, no security content: Tailwind 4 needs a CSS-first config migration and vue-tsc does not
+      # yet run on TypeScript 7 (ERR_PACKAGE_PATH_NOT_EXPORTED). Revisit when both are ready; minor/patch still flow.
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # @types/node tracks the Node inside Electron (24 in Electron 44), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       tooling:
         patterns: ["vite*", "@vitejs/*", "typescript", "vue-tsc", "tailwindcss", "postcss", "autoprefixer", "esbuild", "@types/*"]
