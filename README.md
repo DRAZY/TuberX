@@ -5,7 +5,7 @@
 <p align="center">
   <strong>TuberX turns a link into a finished file. Paste, pick a quality, done.</strong>
   <br /><br />
-  A fast, private video and audio downloader for Windows and Apple-silicon Macs. It produces MP4, MP3, M4A or WAV files that are ready to use the moment they land: tags, cover art, chapters and subtitles already inside. YouTube, Vimeo, Facebook, Instagram, Dailymotion, SoundCloud, Mixcloud, Bandcamp, Youku and the thousand other sites the yt-dlp engine knows, with an engine that updates itself so a site change never waits for an app release. Trim clips on a preview, split by timecodes, follow playlists and channels, convert to H.264 or H.265 on your GPU. No account, no telemetry, no upsell.
+  A fast, private video and audio downloader for Windows and Apple-silicon Macs. It produces MP4, MP3, M4A or WAV files that are ready to use the moment they land: tags, cover art, chapters and subtitles already inside. YouTube, Vimeo, Instagram, Dailymotion, SoundCloud, Mixcloud, Reddit, Bilibili and the 1,700 other sites the yt-dlp engine knows, with an engine that updates itself so a site change never waits for an app release. Trim clips on a preview, split by timecodes, follow playlists and channels, convert to H.264 or H.265 on your GPU. No account, no telemetry, no upsell.
 </p>
 
 <p align="center">
@@ -68,7 +68,13 @@ You found a video, a talk, a mix, an album, a lecture series. You want it as a f
 
 ## Supported sites
 
-YouTube (videos, Shorts, playlists, channels), Vimeo, Facebook, Instagram, Dailymotion, SoundCloud, Mixcloud, Bandcamp, Youku, and every other site the [yt-dlp](https://github.com/yt-dlp/yt-dlp) engine supports, which is most of the web.
+TuberX has no site list of its own: every `http(s)` link goes to the bundled [yt-dlp](https://github.com/yt-dlp/yt-dlp) engine, so the answer is [yt-dlp's supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), 1,751 extractors at engine 2026.08.19. The engine updates itself daily, so a new or repaired extractor reaches you without an app release. Some plain truths about that list:
+
+- **"Supported" means "has an extractor", not "works today".** Sites change and break; yt-dlp itself marks about 136 of those extractors as currently broken at any time. When an extractor breaks mid-download, TuberX retries and the next engine update usually repairs it.
+- **Some sites need identity.** Instagram, Patreon, private Vimeo, age-gated YouTube and most of X need your cookies (Settings → Network: from Chrome, Edge, Firefox or Brave, or an imported cookies.txt) or a site login (Settings → Access). Nothing is sent anywhere but to that site.
+- **DRM services are out** (Netflix, Disney+, Spotify and the like). yt-dlp does not decrypt DRM and neither does TuberX.
+
+Proven on every release by the gate (`bun scripts/release-gate.ts`): YouTube (videos, Shorts, playlists, channels, subtitles, every quality rung and every audio kind), SoundCloud, Dailymotion (HLS), 9gag (WebM-only sources), archive.org. Also downloaded in the 30-site sweep behind 0.3.2: Reddit, Bilibili, Twitch clips, Streamable, VK, Mixcloud, Loom, Dropbox, NYTimes, Pinterest, Substack, iHeart, Instagram, Nebula, Vimeo, Imgur and tumblr.
 
 ## Install
 
@@ -135,6 +141,7 @@ bun scripts/fetch-pot.ts            # PO-token helper for both platforms
 bun run dev                          # Vite + Electron
 bun test                             # unit tests
 bun scripts/site-check.ts           # resolve one public URL per supported site
+bun scripts/release-gate.ts <dir>   # 12 end-to-end downloads through the dev app, asserted with ffmpeg (TUBERX_CDP=1 bun run dev first)
 bun run build:win                    # Windows installer + portable exe
 bun run build:mac                    # macOS arm64 dmg + zip
 ```
