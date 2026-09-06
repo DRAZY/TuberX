@@ -14,6 +14,7 @@ import { registerMediaScheme, serveMedia } from './media'
 import { scheduleUpdateChecks } from './appUpdate'
 import { getSettings } from './settings'
 import { tm } from './i18n'
+import { engineLog } from './engine/log'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
 // A dev instance must never share settings, database or single-instance lock with an installed TuberX.
@@ -141,6 +142,9 @@ app.whenReady().then(async () => {
     if (getSettings().notifyOnComplete && Notification.isSupported()) {
       const n = new Notification({ title: tm('notify.downloadComplete'), body: row.media?.title ?? row.url })
       n.on('click', () => row.outputPath && shell.showItemInFolder(row.outputPath))
+      // Recorded so a user (or the release smoke) can see in engine.log whether the OS accepted the notification.
+      n.on('show', () => engineLog('notify', `shown: ${row.media?.title ?? row.url}`))
+      n.on('failed', (_e, err) => engineLog('notify', `failed: ${err}`))
       n.show()
     }
   })
