@@ -54,6 +54,7 @@ rmSync(dest, { recursive: true, force: true })
 mkdirSync(dest, { recursive: true })
 const cleanup = () => { if (!keep) rmSync(dest, { recursive: true, force: true }) }
 process.on('exit', cleanup)
+for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { cleanup(); process.exit(130) })
 const ffmpeg = join(import.meta.dir, '..', 'resources', 'bin', process.platform, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
 const logPath = join(homedir(), 'Library', 'Application Support', 'TuberX-dev', 'logs', 'engine.log')
 
