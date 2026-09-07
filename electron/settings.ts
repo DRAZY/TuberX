@@ -3,14 +3,16 @@ import { app } from 'electron'
 import { join } from 'node:path'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/types'
 
-const store = new Store<{ settings: Settings }>({ name: 'settings' })
+let _store: Store<{ settings: Settings }> | undefined
+/** Opened on first use, after ./userData has fixed the data folder. */
+const store = () => (_store ??= new Store<{ settings: Settings }>({ name: 'settings' }))
 
 export function defaultDestination(): string {
   return join(app.getPath('videos'), 'TuberX')
 }
 
 export function getSettings(): Settings {
-  const saved = store.get('settings') ?? ({} as Partial<Settings>)
+  const saved = store().get('settings') ?? ({} as Partial<Settings>)
   const merged: Settings = { ...DEFAULT_SETTINGS, ...saved }
   if (!merged.destination) merged.destination = defaultDestination()
   return migrate(merged, saved.settingsVersion ?? 1)
@@ -55,12 +57,12 @@ function migrate(s: Settings, from: number): Settings {
     delete (next as unknown as { autoCheckUpdates?: boolean }).autoCheckUpdates
   }
   next.settingsVersion = DEFAULT_SETTINGS.settingsVersion
-  store.set('settings', next)
+  store().set('settings', next)
   return next
 }
 
 export function patchSettings(patch: Partial<Settings>): Settings {
   const next = { ...getSettings(), ...patch }
-  store.set('settings', next)
+  store().set('settings', next)
   return next
 }

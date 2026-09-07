@@ -1,3 +1,4 @@
+import './userData' // must stay the first import: fixes the data folder before any store is constructed
 import { app, BrowserWindow, Menu, Notification, screen, shell } from 'electron'
 import Store from 'electron-store'
 import { join } from 'node:path'
@@ -17,10 +18,7 @@ import { tm } from './i18n'
 import { engineLog } from './engine/log'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
-// A dev instance must never share settings, database or single-instance lock with an installed TuberX.
-// TUBERX_USER_DATA lets a packaged build be smoke-tested beside an installed one for the same reason (testing only).
-if (process.env.TUBERX_USER_DATA) app.setPath('userData', process.env.TUBERX_USER_DATA)
-else if (!app.isPackaged) app.setPath('userData', join(app.getPath('appData'), 'TuberX-dev'))
+// The data folder (dev vs installed vs TUBERX_USER_DATA) is chosen in ./userData, imported first above.
 registerMediaScheme()
 
 let win: BrowserWindow | null = null

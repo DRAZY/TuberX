@@ -174,6 +174,11 @@ export class QueueManager extends EventEmitter {
     if (retry) await this.fetch(id)
   }
 
+  /** A row keeps the destination it was added with; if that folder is gone, the current setting wins. */
+  private destinationFor(row: QueueRow, settings: Settings): string {
+    return row.destination && existsSync(row.destination) ? row.destination : settings.destination
+  }
+
   remove(ids: string[]) {
     for (const id of ids) this.aborters.get(id)?.abort()
     this.rows = this.rows.filter((r) => !ids.includes(r.id))
@@ -333,13 +338,13 @@ export class QueueManager extends EventEmitter {
     // A resumed row keeps its bar where it paused until the engine reports fresh numbers.
     const seed = row.progress?.stage === 'download' && row.progress.percent > 0 ? { ...row.progress, speed: undefined, eta: undefined } : { stage: 'download' as const, percent: 0 }
     this.update(row.id, { status: 'downloading', progress: seed })
-    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} nameTag=${plan.nameTag ?? '-'} overwrite=${plan.overwrite} aria2=${settings.useAria2} dest=${row.destination || settings.destination}`)
+    engineLog(row.id, `--- start ${row.url} format=${format.id} force=${force} nameTag=${plan.nameTag ?? '-'} overwrite=${plan.overwrite} aria2=${settings.useAria2} dest=${this.destinationFor(row, settings)}`)
     try {
       const run = (p: NamePlan) => download({
         url: row.url,
         media,
         format,
-        destination: row.destination || settings.destination,
+        destination: this.destinationFor(row, settings),
         settings,
         signal: ac.signal,
         overwrite: p.overwrite,
@@ -389,7 +394,7 @@ export class QueueManager extends EventEmitter {
         // the plain name now holds this format; any other format that used the plain name was overwritten
         if (!plan.nameTag) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && (collides === (id.startsWith('v')))) delete variants[id]
         variants[format.id] = plan.nameTag ?? ''
-        dropLocalTemp(row.destination || settings.destination)
+        dropLocalTemp(this.destinationFor(row, settings))
         this.update(row.id, { status: 'done', outputPath: result.outputPath, progress: undefined, downloadedVariants: variants })
         this.db.addHistory(
           {
@@ -403,7 +408,7 @@ export class QueueManager extends EventEmitter {
           },
           urlKey(row.url),
         )
-        this.db.touchDestination(row.destination || settings.destination)
+        this.db.touchDestination(this.destinationFor(row, settings))
         this.emit('completed', { ...row })
       }
     } catch (e) {
