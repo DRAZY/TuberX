@@ -75,7 +75,7 @@ const rows = async () => (await js('window.tuberx.getQueue()')) as any[]
 
 const old = await rows()
 if (old.length) await js(`window.tuberx.removeRows(${JSON.stringify(old.map((r) => r.id))})`)
-await js(`window.tuberx.settings.set(${JSON.stringify({ destination: dest, skipExisting: false, videoCodec: 'auto', convertNonMp4: true, saveThumbnail: false, embedSubtitles: true, subtitleLangs: ['en'] })})`)
+await js(`window.tuberx.settings.set(${JSON.stringify({ destination: dest, skipIfExists: false, videoCodec: 'auto', convertNonMp4: true, saveThumbnail: false, embedSubtitles: true, subtitleLangs: ['en'] })})`)
 
 // One row per URL (the queue dedupes URLs); cases sharing a URL run one after another.
 const results: { c: Case; ok: boolean; detail: string; seconds?: number }[] = []
