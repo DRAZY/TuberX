@@ -131,6 +131,8 @@ Settings → Downloads → "Re-downloading in a different format" switches rule 
 
 **A download is slow or fails.** Every yt-dlp line for every download is written to `engine.log` (Settings → Engine → Open log folder) in the app-data folder (`%APPDATA%\TuberX\logs` on Windows, `~/Library/Application Support/TuberX/logs` on macOS). It is the first thing to attach to a problem report.
 
+**TuberX does not open, or a click does nothing.** Check for `TuberX.exe` in Task Manager (Activity Monitor on a Mac): if it is running with no window, end it and open TuberX again. Since 0.3.8 the window is shown even when the page or the graphics process fails, a second click brings the existing window back, a crashed graphics process makes the next launch render in software, and an unreadable settings file is set aside so the app still starts. The log (path below) begins every launch with a `[app] launch` line, so it shows how far the app got.
+
 **"This video is DRM-protected."** The site serves that video only through DRM, and no downloader can take it.
 
 ## Building from source

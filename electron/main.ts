@@ -1,5 +1,5 @@
 import './userData' // must stay the first import: fixes the data folder before any store is constructed
-import { app, BrowserWindow, Menu, Notification, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, Notification, screen, shell } from 'electron'
 import Store from 'electron-store'
 import { join } from 'node:path'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -15,7 +15,7 @@ import { registerMediaScheme, serveMedia } from './media'
 import { scheduleUpdateChecks } from './appUpdate'
 import { getSettings } from './settings'
 import { tm } from './i18n'
-import { engineLog } from './engine/log'
+import { engineLog, engineLogPath } from './engine/log'
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
 // The data folder (dev vs installed vs TUBERX_USER_DATA) is chosen in ./userData, imported first above.
@@ -32,8 +32,11 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_e, argv) => {
     handleArgv(argv)
-    if (win) {
+    engineLog('app', 'second instance: bringing the window back')
+    if (!win) createWindow()
+    else {
       if (win.isMinimized()) win.restore()
+      if (!win.isVisible()) win.show()
       win.focus()
     }
   })
@@ -64,7 +67,36 @@ function deliverLink(raw: string) {
 /** Default window: a compact applet, centred; size and position remembered between launches. */
 const DEFAULT_BOUNDS = { width: 600, height: 680 }
 const MIN_BOUNDS = { width: 480, height: 420 }
-const windowStore = new Store<{ bounds?: { x: number; y: number; width: number; height: number } }>({ name: 'window' })
+const windowStore = new Store<{ bounds?: { x: number; y: number; width: number; height: number }; softwareRendering?: boolean }>({
+  name: 'window',
+  clearInvalidConfig: true, // only window geometry lives here: a damaged file must never stop the app from starting
+})
+
+// ---- startup resilience (issue #5: "click, no reaction" on Windows) ----
+engineLog('app', `launch ${app.getVersion()} electron ${process.versions.electron} ${process.platform}-${process.arch} packaged=${app.isPackaged}`)
+// A GPU process that died on a previous launch flips this flag; from then on the app renders in software.
+if (windowStore.get('softwareRendering')) {
+  app.disableHardwareAcceleration()
+  engineLog('app', 'hardware acceleration off (GPU process failed on an earlier launch)')
+}
+app.on('child-process-gone', (_e, d) => {
+  if (d.type !== 'GPU' || d.reason === 'clean-exit' || d.reason === 'killed') return
+  engineLog('app', `GPU process gone: ${d.reason} (exit ${d.exitCode})`)
+  if (windowStore.get('softwareRendering')) return // already in software mode: nothing more to fall back to
+  windowStore.set('softwareRendering', true)
+  engineLog('app', 'relaunching with hardware acceleration off')
+  // The Windows portable build runs from a temp extraction that its launcher deletes on exit, so it
+  // must relaunch the exe the user actually double-clicked.
+  app.relaunch(process.env.PORTABLE_EXECUTABLE_FILE ? { execPath: process.env.PORTABLE_EXECUTABLE_FILE } : undefined)
+  app.exit(0)
+})
+process.on('uncaughtException', (err) => {
+  // Logged for the bug report, then the same error box Electron would have shown (it stays silent once
+  // another listener exists), then exit: a half-initialised main process must not linger invisibly.
+  engineLog('app', `uncaught: ${err?.stack ?? err}`)
+  dialog.showErrorBox('TuberX could not start', `${err?.stack ?? err}\n\nLog: ${engineLogPath()}`)
+  app.exit(1)
+})
 
 /** Saved bounds only if they still land on a connected display; otherwise the centred default. */
 function restoredBounds(): { x?: number; y?: number; width: number; height: number } {
@@ -107,12 +139,42 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     for (const l of pendingLinks.splice(0)) send('url:incoming', l)
   })
+  // Never leave the user with a running process and no window. Show it on any failure, and after a
+  // deadline even if the renderer never signalled ready-to-show.
+  const w = win
+  const showAnyway = (why: string) => {
+    if (!w || w.isDestroyed() || w.isVisible()) return
+    engineLog('app', `window shown: ${why}`)
+    w.show()
+  }
+  const deadline = setTimeout(() => showAnyway('ready-to-show never fired (10 s)'), 10_000)
+  w.once('ready-to-show', () => clearTimeout(deadline))
+  w.on('closed', () => clearTimeout(deadline))
+  w.webContents.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return // -3: aborted by a newer navigation
+    engineLog('app', `page failed to load: ${code} ${desc} ${url}`)
+    void w.loadURL(
+      'data:text/html;charset=utf-8,' +
+        encodeURIComponent(
+          `<body style="font:14px system-ui;background:#1c1c1e;color:#e5e5e7;padding:40px"><h2>TuberX could not load its interface</h2><p>The installation looks damaged. Reinstall TuberX from <a style="color:#4da3ff" href="https://github.com/DRAZY/TuberX/releases/latest">github.com/DRAZY/TuberX/releases</a>.</p><p>Details: ${desc} (${code})<br>Log: ${engineLogPath()}</p></body>`,
+        ),
+    )
+    showAnyway('load failure')
+  })
+  let rendererRestarts = 0
+  w.webContents.on('render-process-gone', (_e, d) => {
+    engineLog('app', `renderer gone: ${d.reason} (exit ${d.exitCode})`)
+    if (d.reason === 'clean-exit' || d.reason === 'killed') return
+    if (rendererRestarts++ < 2) w.webContents.reload()
+    else showAnyway('renderer keeps crashing')
+  })
+  w.on('unresponsive', () => engineLog('app', 'window unresponsive'))
   if (isDev) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL!)
   } else {
     void win.loadFile(join(__dirname, '../dist/index.html'))
   }
-  win.once('ready-to-show', () => win?.show())
+  win.once('ready-to-show', () => showAnyway('ready'))
   const saveBounds = () => {
     if (!win || win.isMinimized() || win.isFullScreen()) return
     windowStore.set('bounds', win.getNormalBounds())

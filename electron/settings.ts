@@ -1,11 +1,33 @@
 import Store from 'electron-store'
 import { app } from 'electron'
 import { join } from 'node:path'
+import { renameSync } from 'node:fs'
+import { engineLog } from './engine/log'
 import { DEFAULT_SETTINGS, type Settings } from '../shared/types'
 
 let _store: Store<{ settings: Settings }> | undefined
-/** Opened on first use, after ./userData has fixed the data folder. */
-const store = () => (_store ??= new Store<{ settings: Settings }>({ name: 'settings' }))
+/**
+ * Opened on first use, after ./userData has fixed the data folder. A settings.json that no longer parses
+ * (crash or power loss mid-write) is set aside as settings.corrupt-<time>.json and the app starts on
+ * defaults, rather than dying before its window exists.
+ */
+const store = () => {
+  if (_store) return _store
+  try {
+    _store = new Store<{ settings: Settings }>({ name: 'settings' })
+  } catch (e) {
+    const file = join(app.getPath('userData'), 'settings.json')
+    const aside = join(app.getPath('userData'), `settings.corrupt-${Date.now()}.json`)
+    try {
+      renameSync(file, aside)
+    } catch {
+      /* nothing to set aside */
+    }
+    engineLog('app', `settings.json unreadable (${(e as Error).message}); moved to ${aside}, starting on defaults`)
+    _store = new Store<{ settings: Settings }>({ name: 'settings' })
+  }
+  return _store
+}
 
 export function defaultDestination(): string {
   return join(app.getPath('videos'), 'TuberX')
