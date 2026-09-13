@@ -8,7 +8,7 @@
  * WebM-only site (VP8 must be encoded), an HLS site, a silent video, cover art in every container.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir, tmpdir } from 'node:os'
 
@@ -57,6 +57,9 @@ process.on('exit', cleanup)
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { cleanup(); process.exit(130) })
 const ffmpeg = join(import.meta.dir, '..', 'resources', 'bin', process.platform, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
 const logPath = join(homedir(), 'Library', 'Application Support', 'TuberX-dev', 'logs', 'engine.log')
+// The app rotates engine.log at 5 MB. A run writes a few MB, so a log that is already large would rotate
+// mid-run and the batch slice below would miss the second half (2026-09-13: 5 false failures). Rotate first.
+if (existsSync(logPath) && statSync(logPath).size > 1024 * 1024) renameSync(logPath, logPath + '.1')
 
 const targets = (await (await fetch('http://127.0.0.1:9333/json')).json()) as { type: string; webSocketDebuggerUrl: string }[]
 const page = targets.find((t) => t.type === 'page')
@@ -114,7 +117,9 @@ for (let round = 0; ; round++) {
   const batchLogStart = existsSync(logPath) ? readFileSync(logPath, 'utf8').length : 0
   await js(`window.tuberx.startDownload(${JSON.stringify(ids)})`)
   for (;;) { r = await rows(); if (!r.some((x) => ids.includes(x.id) && ['queued', 'downloading', 'converting'].includes(x.status))) break; if (Date.now() - t1 > 1200_000) break; await Bun.sleep(2000) }
-  const log = existsSync(logPath) ? readFileSync(logPath, 'utf8').slice(batchLogStart) : ''
+  const current = existsSync(logPath) ? readFileSync(logPath, 'utf8') : ''
+  // rotated during the batch: the batch's first lines are at the end of .1, the rest in the new file
+  const log = current.length >= batchLogStart ? current.slice(batchLogStart) : (existsSync(logPath + '.1') ? readFileSync(logPath + '.1', 'utf8').slice(batchLogStart) : '') + current
   for (const c of batch) {
     const x = find(r, c.url)
     if (!x || !ids.includes(x.id)) continue
