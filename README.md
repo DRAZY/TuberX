@@ -12,11 +12,12 @@
   <a href="https://github.com/DRAZY/TuberX/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/DRAZY/TuberX?color=e0393e&label=release" /></a>
   <a href="https://github.com/DRAZY/TuberX/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/DRAZY/TuberX/total?color=e0393e&label=downloads" /></a>
   <a href="https://github.com/DRAZY/TuberX/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/DRAZY/TuberX?color=e0393e" /></a>
+  <a href="https://github.com/DRAZY/TuberX/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/DRAZY/TuberX/actions/workflows/ci.yml/badge.svg" /></a>
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/DRAZY/TuberX?color=e0393e" />
   <br />
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-38-47848F?logo=electron&logoColor=white" />
-  <img alt="Vue" src="https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js&logoColor=white" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" />
+  <img alt="Electron" src="https://img.shields.io/github/package-json/dependency-version/DRAZY/TuberX/dev/electron?logo=electron&logoColor=white&color=47848F&label=Electron" />
+  <img alt="Vue" src="https://img.shields.io/github/package-json/dependency-version/DRAZY/TuberX/vue?logo=vue.js&logoColor=white&color=4FC08D&label=Vue" />
+  <img alt="TypeScript" src="https://img.shields.io/github/package-json/dependency-version/DRAZY/TuberX/dev/typescript?logo=typescript&logoColor=white&color=3178C6&label=TypeScript" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green" />
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20x64%20%7C%20macOS%20Apple%20silicon-lightgrey" />
 </p>
