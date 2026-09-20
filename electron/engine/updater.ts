@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { resolveTool, userBinDir } from './paths'
 import { run } from './run'
 import { sysTool } from './systools'
+import { ENGINE_RELEASE_PREFIX, verifyEngineDownload } from './checksum'
+import { engineLog } from './log'
 
 /**
  * Engine self-update: fetch the latest yt-dlp release from GitHub into userData/bin,
@@ -34,16 +36,40 @@ export async function currentEngineVersion(): Promise<string | null> {
   return res.stdout.trim() || null
 }
 
-export async function latestEngineVersion(): Promise<{ version: string; url: string }> {
-  const res = await fetch(RELEASE_API, { headers: { 'User-Agent': 'TuberX', Accept: 'application/vnd.github+json' } })
-  if (!res.ok) throw new Error(`GitHub API ${res.status}`)
-  const json = (await res.json()) as { tag_name: string; assets: { name: string; browser_download_url: string }[] }
-  const asset = json.assets.find((a) => a.name === assetName())
-  if (!asset) throw new Error(`no asset ${assetName()} in release ${json.tag_name}`)
-  return { version: json.tag_name, url: asset.browser_download_url }
+export interface EngineRelease {
+  version: string
+  url: string
+  /** The release's SHA2-256SUMS file. */
+  sumsUrl: string
+  /** GitHub's own digest for the asset ("sha256:…"), when the API supplies one. */
+  apiDigest: string | null
 }
 
-export async function updateEngine(log: (m: string) => void = () => {}): Promise<{ updated: boolean; version: string }> {
+export async function latestEngineVersion(): Promise<EngineRelease> {
+  const res = await fetch(RELEASE_API, { headers: { 'User-Agent': 'TuberX', Accept: 'application/vnd.github+json' } })
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`)
+  const json = (await res.json()) as { tag_name: string; assets: { name: string; browser_download_url: string; digest?: string | null }[] }
+  const asset = json.assets.find((a) => a.name === assetName())
+  if (!asset) throw new Error(`no asset ${assetName()} in release ${json.tag_name}`)
+  const sums = json.assets.find((a) => a.name === 'SHA2-256SUMS')
+  if (!sums) throw new Error(`release ${json.tag_name} has no SHA2-256SUMS, so the download could not be verified; update not installed`)
+  for (const u of [asset.browser_download_url, sums.browser_download_url])
+    if (!u.startsWith(ENGINE_RELEASE_PREFIX)) throw new Error(`unexpected download location ${u}; update not installed`)
+  return { version: json.tag_name, url: asset.browser_download_url, sumsUrl: sums.browser_download_url, apiDigest: asset.digest ?? null }
+}
+
+let inFlight: Promise<{ updated: boolean; version: string }> | null = null
+
+/**
+ * One update at a time. The startup check, a self-heal after an extractor error and the Settings button can all
+ * ask within the same second; they share one download, one staging folder and one result. Two running together
+ * used to unpack into the same folder and fail with "downloaded yt-dlp failed to run".
+ */
+export function updateEngine(log: (m: string) => void = () => {}): Promise<{ updated: boolean; version: string }> {
+  return (inFlight ??= runEngineUpdate(log).finally(() => (inFlight = null)))
+}
+
+async function runEngineUpdate(log: (m: string) => void): Promise<{ updated: boolean; version: string }> {
   const current = await currentEngineVersion()
   const latest = await latestEngineVersion()
   if (current === latest.version) return { updated: false, version: latest.version }
@@ -55,9 +81,22 @@ export async function updateEngine(log: (m: string) => void = () => {}): Promise
   const target = join(dir, 'yt-dlp')
   const staging = join(dir, 'yt-dlp.new')
   const zip = join(dir, 'yt-dlp.download.zip')
-  const res = await fetch(latest.url, { headers: { 'User-Agent': 'TuberX' } })
+  const [res, sumsRes] = await Promise.all([
+    fetch(latest.url, { headers: { 'User-Agent': 'TuberX' } }),
+    fetch(latest.sumsUrl, { headers: { 'User-Agent': 'TuberX' } }),
+  ])
   if (!res.ok) throw new Error(`download ${res.status}`)
-  writeFileSync(zip, Buffer.from(await res.arrayBuffer()))
+  if (!sumsRes.ok) throw new Error(`SHA2-256SUMS download ${sumsRes.status}; update not installed`)
+  const data = Buffer.from(await res.arrayBuffer())
+  // Verified in memory: an archive that fails never reaches the disk, is never unpacked and is never run.
+  try {
+    const hash = verifyEngineDownload(data, assetName(), await sumsRes.text(), latest.apiDigest)
+    engineLog('engine', `yt-dlp ${latest.version}: ${assetName()} verified, sha256 ${hash}${latest.apiDigest ? ' (SHA2-256SUMS and GitHub digest agree)' : ' (SHA2-256SUMS)'}`)
+  } catch (e) {
+    engineLog('engine', `yt-dlp ${latest.version}: REJECTED: ${(e as Error).message}`)
+    throw e
+  }
+  writeFileSync(zip, data)
   rmSync(staging, { recursive: true, force: true })
   mkdirSync(staging, { recursive: true })
   await unzip(zip, staging)
