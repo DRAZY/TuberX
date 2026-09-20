@@ -68,9 +68,11 @@ const ws = new WebSocket(page.webSocketDebuggerUrl)
 await new Promise((r) => (ws.onopen = r))
 let id = 0
 const js = (expression: string) =>
-  new Promise<any>((res) => {
+  new Promise<any>((res, rej) => {
+    if (ws.readyState !== WebSocket.OPEN) return rej(new Error('gate: the connection to the app is closed'))
+    const timer = setTimeout(() => rej(new Error(`gate: no answer from the app in 60 s for: ${expression.slice(0, 80)}`)), 60_000)
     const my = ++id
-    const h = (e: MessageEvent) => { const m = JSON.parse(String(e.data)); if (m.id === my) { ws.removeEventListener('message', h); res(m.result?.result?.value) } }
+    const h = (e: MessageEvent) => { const m = JSON.parse(String(e.data)); if (m.id === my) { clearTimeout(timer); ws.removeEventListener('message', h); res(m.result?.result?.value) } }
     ws.addEventListener('message', h)
     ws.send(JSON.stringify({ id: my, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }))
   })
@@ -81,7 +83,9 @@ if (old.length) await js(`window.tuberx.removeRows(${JSON.stringify(old.map((r) 
 // The dev instance keeps whatever settings the gate gives it, and recreates its destination folder on its next
 // launch, which is how an empty tuberx-gate-* folder outlived every run. Remember the settings and put them back.
 const settingsBefore = (await js('window.tuberx.settings.get()')) as Record<string, unknown>
-const restore = Object.fromEntries(['destination', 'skipIfExists', 'videoCodec', 'convertNonMp4', 'saveThumbnail', 'embedSubtitles', 'subtitleLangs'].map((k) => [k, settingsBefore[k]]))
+const devDownloads = join(homedir(), 'Library', 'Application Support', 'TuberX-dev', 'downloads')
+const restore: Record<string, unknown> = Object.fromEntries(['destination', 'skipIfExists', 'videoCodec', 'convertNonMp4', 'saveThumbnail', 'embedSubtitles', 'subtitleLangs'].map((k) => [k, settingsBefore[k]]))
+if (typeof restore.destination !== 'string' || /tuberx-gate-/.test(restore.destination)) restore.destination = devDownloads // a killed run can leave its own folder behind as the setting
 await js(`window.tuberx.settings.set(${JSON.stringify({ destination: dest, skipIfExists: false, videoCodec: 'auto', convertNonMp4: true, saveThumbnail: false, embedSubtitles: true, subtitleLangs: ['en'] })})`)
 
 // One row per URL (the queue dedupes URLs); cases sharing a URL run one after another.
@@ -162,11 +166,13 @@ for (let round = 0; ; round++) {
   }
   void before
 }
-ws.close()
 let failed = 0
 for (const r of results) { if (!r.ok) failed++; console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.c.name.padEnd(30)} ${r.detail}`) }
+// Teardown while the connection is still open: clear the queue and give the dev instance its settings back.
 const left = await rows()
 if (left.length) await js(`window.tuberx.removeRows(${JSON.stringify(left.map((r) => r.id))})`)
 await js(`window.tuberx.settings.set(${JSON.stringify(restore)})`)
+console.log(`teardown: ${left.length} rows removed, destination restored to ${restore.destination}`)
+ws.close()
 console.log(`\n${results.length - failed}/${results.length} passed`)
 process.exit(failed ? 1 : 0)
