@@ -78,6 +78,10 @@ const rows = async () => (await js('window.tuberx.getQueue()')) as any[]
 
 const old = await rows()
 if (old.length) await js(`window.tuberx.removeRows(${JSON.stringify(old.map((r) => r.id))})`)
+// The dev instance keeps whatever settings the gate gives it, and recreates its destination folder on its next
+// launch, which is how an empty tuberx-gate-* folder outlived every run. Remember the settings and put them back.
+const settingsBefore = (await js('window.tuberx.settings.get()')) as Record<string, unknown>
+const restore = Object.fromEntries(['destination', 'skipIfExists', 'videoCodec', 'convertNonMp4', 'saveThumbnail', 'embedSubtitles', 'subtitleLangs'].map((k) => [k, settingsBefore[k]]))
 await js(`window.tuberx.settings.set(${JSON.stringify({ destination: dest, skipIfExists: false, videoCodec: 'auto', convertNonMp4: true, saveThumbnail: false, embedSubtitles: true, subtitleLangs: ['en'] })})`)
 
 // One row per URL (the queue dedupes URLs); cases sharing a URL run one after another.
@@ -161,5 +165,8 @@ for (let round = 0; ; round++) {
 ws.close()
 let failed = 0
 for (const r of results) { if (!r.ok) failed++; console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.c.name.padEnd(30)} ${r.detail}`) }
+const left = await rows()
+if (left.length) await js(`window.tuberx.removeRows(${JSON.stringify(left.map((r) => r.id))})`)
+await js(`window.tuberx.settings.set(${JSON.stringify(restore)})`)
 console.log(`\n${results.length - failed}/${results.length} passed`)
 process.exit(failed ? 1 : 0)

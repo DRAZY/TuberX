@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, isAbsolute } from 'node:path'
 import { delimiter } from 'node:path'
 import type { ToolStatus } from '../../shared/types'
 
@@ -38,7 +38,7 @@ export function bundledBinDir(): string {
 function findOnPath(name: string): string | null {
   const path = process.env.PATH ?? ''
   for (const dir of path.split(delimiter)) {
-    if (!dir) continue
+    if (!dir || !isAbsolute(dir)) continue // a relative PATH entry ("." included) resolves against the working directory
     const candidate = join(dir, name + EXE)
     if (existsSync(candidate)) return candidate
   }
@@ -51,8 +51,12 @@ function findOnPath(name: string): string | null {
 }
 
 /**
- * Resolution order: user-updated copy → bundled copy → PATH.
+ * Resolution order: user-updated copy → bundled copy → (development only) PATH.
  * Returns null when the tool is missing entirely.
+ *
+ * An installed app never looks on PATH. It ships every tool it needs, so a missing one means a damaged
+ * install, which the tool-health check reports; running whatever happens to be called ffmpeg or yt-dlp
+ * somewhere on PATH instead would execute a binary the app did not ship and cannot vouch for.
  */
 export function resolveTool(name: Exclude<ToolName, 'pot-helper'>): string | null {
   const file = name + EXE
@@ -62,7 +66,7 @@ export function resolveTool(name: Exclude<ToolName, 'pot-helper'>): string | nul
     candidates.push(join(dir, file))
   }
   for (const c of candidates) if (existsSync(c)) return c
-  return findOnPath(name)
+  return app.isPackaged ? null : findOnPath(name)
 }
 
 export function resolveAllTools(): Record<Exclude<ToolName, 'pot-helper'>, string | null> {

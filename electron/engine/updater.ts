@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { resolveTool, userBinDir } from './paths'
 import { run } from './run'
+import { sysTool } from './systools'
 
 /**
  * Engine self-update: fetch the latest yt-dlp release from GitHub into userData/bin,
@@ -20,7 +21,7 @@ function assetName(): string {
 function unzip(zip: string, dest: string): Promise<void> {
   // bsdtar ships with Windows 10+ and macOS and reads zip files.
   return new Promise((resolve, reject) => {
-    const p = spawn('tar', ['-xf', zip, '-C', dest], { windowsHide: true, stdio: 'ignore' })
+    const p = spawn(sysTool('tar'), ['-xf', zip, '-C', dest], { windowsHide: true, stdio: 'ignore' })
     p.on('error', reject)
     p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`tar exited ${code}`))))
   })

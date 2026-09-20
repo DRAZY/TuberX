@@ -13,6 +13,7 @@ import { updateEngine } from '../engine/updater'
 import { hasSecret, setSecret } from '../secrets'
 import { canInstallInPlace, checkForUpdate, installUpdate, scheduleUpdateChecks, updateStatus } from '../appUpdate'
 import { bestEncoder } from '../engine/encoders'
+import { sysTool } from '../engine/systools'
 import { exportSegment, inspect, splitByMarks, writeChapters } from '../engine/transcode'
 import { mediaUrl } from '../media'
 import { engineLog } from '../queue/manager'
@@ -36,7 +37,7 @@ export async function openFile(path: string): Promise<void> {
 export async function openWith(path: string, win?: BrowserWindow): Promise<void> {
   if (!existsSync(path)) return send('toast', { kind: 'warn', message: tm('toast.fileGone') })
   if (process.platform === 'win32') {
-    spawn('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', path], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+    spawn(sysTool('rundll32'), ['shell32.dll,OpenAs_RunDLL', path], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
     return
   }
   const res = await dialog.showOpenDialog(win!, {
@@ -47,7 +48,7 @@ export async function openWith(path: string, win?: BrowserWindow): Promise<void>
   })
   const appPath = res.filePaths[0]
   if (!appPath) return
-  spawn('open', ['-a', appPath, path], { detached: true, stdio: 'ignore' }).unref()
+  spawn(sysTool('open'), ['-a', appPath, path], { detached: true, stdio: 'ignore' }).unref()
 }
 
 // ---- power actions after the queue drains ----
@@ -70,10 +71,10 @@ export function schedulePowerAction(action: 'sleep' | 'shutdown'): void {
     powerTimer = powerTick = undefined
     if (process.platform === 'win32') {
       const args = action === 'sleep' ? ['powrprof.dll,SetSuspendState', '0,1,0'] : ['/s', '/t', '5']
-      spawn(action === 'sleep' ? 'rundll32.exe' : 'shutdown', args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+      spawn(sysTool(action === 'sleep' ? 'rundll32' : 'shutdown'), args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
     } else {
       const script = action === 'sleep' ? 'tell application "System Events" to sleep' : 'tell application "System Events" to shut down'
-      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref()
+      spawn(sysTool('osascript'), ['-e', script], { detached: true, stdio: 'ignore' }).unref()
     }
   }, 30_000)
 }
