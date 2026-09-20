@@ -5,7 +5,7 @@ describe('run() idle watchdog', () => {
   test('kills a silent process tree and reports stalled', async () => {
     const started = Date.now()
     // A parent shell that spawns a silent child: both must be gone afterwards.
-    const { child, done } = run('sh', ['-c', 'sleep 300 & echo started; wait'], { idleTimeoutMs: 1500 })
+    const { child, done } = run('/bin/sh', ['-c', 'sleep 300 & echo started; wait'], { idleTimeoutMs: 1500 })
     const res = await done
     expect(res.stalled).toBe(true)
     expect(res.stdout).toContain('started')
@@ -14,7 +14,7 @@ describe('run() idle watchdog', () => {
   }, 40000)
 
   test('a chatty process is never considered stalled', async () => {
-    const { done } = run('sh', ['-c', 'for i in 1 2 3; do echo tick; sleep 0.5; done'], { idleTimeoutMs: 5000 })
+    const { done } = run('/bin/sh', ['-c', 'for i in 1 2 3; do echo tick; sleep 0.5; done'], { idleTimeoutMs: 5000 })
     const res = await done
     expect(res.stalled).toBe(false)
     expect(res.code).toBe(0)

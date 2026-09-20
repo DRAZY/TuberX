@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { delimiter } from 'node:path'
+import { delimiter, isAbsolute } from 'node:path'
+import { sysTool } from './systools'
 
 export interface RunResult {
   code: number | null
@@ -27,12 +28,12 @@ export interface RunOptions {
 export function killTree(child: ChildProcess): void {
   if (!child.pid) return
   if (process.platform === 'win32') {
-    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill())
+    spawn(sysTool('taskkill'), ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill())
     return
   }
   // POSIX: list the children first (once the parent is gone they reparent and can no longer be found),
   // TERM them so aria2c can save its control file, kill the parent, then KILL any child still alive 3 s later.
-  const pg = spawn('pgrep', ['-P', String(child.pid)])
+  const pg = spawn(sysTool('pgrep'), ['-P', String(child.pid)])
   let out = ''
   pg.stdout.on('data', (d: Buffer) => (out += d.toString()))
   const finish = () => {
@@ -57,15 +58,22 @@ function sig(pid: number, signal: NodeJS.Signals): void {
 }
 
 /**
- * Spawn a tool, stream lines, collect output. Windows-safe: no shell, so
- * titles with quotes or ampersands never reach cmd.exe.
+ * Spawn a tool, stream lines, collect output.
+ *
+ * Two rules hold for every process the engine starts, and both are enforced here rather than assumed:
+ * - No shell. Arguments reach the tool as an argv array, so a title or path with quotes, ampersands or
+ *   backticks is never parsed by cmd.exe or sh.
+ * - The command is an absolute path picked by resolveTool(). A bare name would hand the choice of
+ *   executable to a search of the working directory and PATH.
  */
 export function run(cmd: string, args: string[], opts: RunOptions = {}): { child: ChildProcess; done: Promise<RunResult> } {
+  if (!isAbsolute(cmd)) throw new Error(`refusing to run a command that is not an absolute path: ${cmd}`)
   // Tools that yt-dlp looks up by name (aria2c, deno, ffmpeg) must be on PATH; prepend our bin dirs.
   const extraPath = (opts.pathPrepend ?? []).filter(Boolean).join(delimiter)
   const PATH = extraPath ? `${extraPath}${delimiter}${process.env.PATH ?? ''}` : process.env.PATH
   const child = spawn(cmd, args, {
     cwd: opts.cwd,
+    shell: false,
     windowsHide: true,
     env: { ...process.env, PATH, Path: PATH, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1', ...opts.env },
   })

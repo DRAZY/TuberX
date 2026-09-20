@@ -16,6 +16,7 @@ import { engineLog } from './log'
 import { tm } from '../i18n'
 import { cpus } from 'node:os'
 import { spawn } from 'node:child_process'
+import { sysTool } from './systools'
 
 /** Set at startup from a DNS probe of jnn-pa.googleapis.com; false disables the PO-token helper args. */
 let potReachable = true
@@ -245,7 +246,7 @@ export function tempDirFor(destination: string): string {
   }
   const local = join(destination, '.tuberx-tmp')
   mkdirp(local, { recursive: true })
-  if (process.platform === 'win32') void spawn('attrib', ['+h', local], { windowsHide: true }).on('error', () => {})
+  if (process.platform === 'win32') void spawn(sysTool('attrib'), ['+h', local], { windowsHide: true }).on('error', () => {})
   return local
 }
 
