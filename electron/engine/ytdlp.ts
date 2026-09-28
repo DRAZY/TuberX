@@ -7,8 +7,9 @@ import { playlistUrlFromVideoUrl, vimeoPlayerUrl } from '../../shared/urls'
 import { ffmpegLocation, potDir, resolveTool, toolDirs, userBinDir } from './paths'
 import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, renameSync, rmdirSync, statSync, writeFileSync as writeFile } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { BOT_CHECK, BotCheckError, TOKEN_CLIENTS, helperFailure, isYouTubeUrl } from './botcheck'
 import { basename } from 'node:path'
-import { run } from './run'
+import { run, type RunResult } from './run'
 import { app } from 'electron'
 import { getSecret } from '../secrets'
 import { downloadFast, FastPathUnavailable } from './fastpath'
@@ -55,7 +56,8 @@ function commonArgs(settings: Settings, url = '', forcePot = false): string[] {
   // yt-dlp encodes what it prints with the locale's preferred encoding (cp1252 on Windows) and drops
   // characters it cannot represent, so a printed path stops matching the real file. Force UTF-8 on the
   // pipe; PYTHONUTF8=1 in engineEnv() covers the Python side.
-  const args = ['--no-warnings', '--no-colors', '--ignore-config', '--no-playlist-reverse', '--encoding', 'utf-8']
+  // The sign-in-check retry (forcePot) keeps warnings: the token helper reports its failures as warnings.
+  const args = [...(forcePot ? [] : ['--no-warnings']), '--no-colors', '--ignore-config', '--no-playlist-reverse', '--encoding', 'utf-8']
   args.push('--cache-dir', join(app.getPath('userData'), 'yt-dlp-cache'))
   const ff = ffmpegLocation()
   if (ff) args.push('--ffmpeg-location', ff)
@@ -81,7 +83,27 @@ function commonArgs(settings: Settings, url = '', forcePot = false): string[] {
     args.push('--plugin-dirs', join(pot, 'plugins'))
     args.push('--extractor-args', `youtubepot-bgutilscript:server_home=${join(pot, 'server')}`)
   }
+  // A sign-in check retry asks for the clients the helper can actually token; yt-dlp's defaults are not among them.
+  if (forcePot && isYouTubeUrl(url)) args.push('--extractor-args', `youtube:player_client=${TOKEN_CLIENTS}`)
   return args
+}
+
+/** The note appended to the sign-in-check message: why the helper could not have helped, when that is known. */
+function helperNote(settings: Settings, stderr: string): string {
+  if (settings.potHelper === 'off') return tm('error.botCheckHelperOff')
+  if (!potReachable) return tm('error.botCheckHelperBlocked')
+  const reason = helperFailure(stderr)
+  return reason ? tm('error.botCheckHelperFailed', { reason }) : ''
+}
+
+// Development only: TUBERX_FAKE_BOTCHECK=<n> makes the first n yt-dlp runs answer with a sign-in check, so the
+// retry, the automatic backoff and the row's countdown can be exercised without a flagged IP address.
+const fakeBotChecks = { left: app.isPackaged ? 0 : Number(process.env.TUBERX_FAKE_BOTCHECK ?? 0) || 0 }
+function fakeBotCheck(): { code: number; stdout: string; stderr: string } | null {
+  if (fakeBotChecks.left <= 0) return null
+  fakeBotChecks.left--
+  engineLog('fetch', `TUBERX_FAKE_BOTCHECK: pretending YouTube asked for a sign-in check (${fakeBotChecks.left} left)`)
+  return { code: 1, stdout: '', stderr: "ERROR: [youtube] fake: Sign in to confirm you're not a bot. This is a test." }
 }
 
 /** Environment for every yt-dlp spawn: keep Deno's and the helper's caches inside app data. */
@@ -107,11 +129,18 @@ export async function fetchMetadata(url: string, settings: Settings, opts: Fetch
   const args = [...commonArgs(settings, url), '--dump-single-json', '--flat-playlist', '--skip-download']
   // A single video inside a playlist: fetch the video, remember the playlist for the prompt.
   if (opts.noPlaylist !== false && playlistUrlFromVideoUrl(url)) args.push('--no-playlist')
-  let res = await run(bin, [...args, '--', url], { timeoutMs: 180000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done
-  if (res.code !== 0 && /confirm you.re not a bot/i.test(res.stderr) && !opts.signal?.aborted) {
-    // A sign-in check: retry once with the PO-token helper engaged (its 10-60 s cost is paid only here, not on every fetch).
+  let res: RunResult | { code: number; stdout: string; stderr: string } =
+    fakeBotCheck() ?? (await run(bin, [...args, '--', url], { timeoutMs: 180000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done)
+  if (res.code !== 0 && BOT_CHECK.test(res.stderr) && !opts.signal?.aborted) {
+    // A sign-in check: one retry with the PO-token helper engaged and the clients it can token (its 5-60 s cost is paid only here).
+    engineLog('fetch', `${safeHost(url)}: sign-in check; retrying with the token helper and player clients ${TOKEN_CLIENTS}`)
     const withPot = [...commonArgs(settings, url, true), '--dump-single-json', '--flat-playlist', '--skip-download', ...(opts.noPlaylist !== false && playlistUrlFromVideoUrl(url) ? ['--no-playlist'] : [])]
-    res = await run(bin, [...withPot, '--', url], { timeoutMs: 240000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done
+    res = fakeBotCheck() ?? (await run(bin, [...withPot, '--', url], { timeoutMs: 240000, signal: opts.signal, pathPrepend: toolDirs(), env: engineEnv() }).done)
+    if (res.code !== 0 && BOT_CHECK.test(res.stderr) && !opts.signal?.aborted) {
+      const msg = tm('error.botCheck', { helper: helperNote(settings, res.stderr) })
+      engineLog('fetch', `${safeHost(url)}: sign-in check persisted after the retry`)
+      throw new BotCheckError(msg)
+    }
   }
   if (res.code !== 0 || !res.stdout.trim()) {
     // Vimeo: anonymous web client is refused, the embed player is not. Retry there once.
@@ -124,7 +153,7 @@ export async function fetchMetadata(url: string, settings: Settings, opts: Fetch
       }
     }
     // An empty stderr with a non-zero exit is a killed or crashed process, not a site message; say so.
-    const msg = res.stderr.trim() ? friendlyError(res.stderr) : res.stalled ? tm('error.stalledDownload') : `${tm('error.unknown')} (yt-dlp exit ${res.code ?? 'signal'}, no message)`
+    const msg = res.stderr.trim() ? friendlyError(res.stderr) : 'stalled' in res && res.stalled ? tm('error.stalledDownload') : `${tm('error.unknown')} (yt-dlp exit ${res.code ?? 'signal'}, no message)`
     engineLog('fetch', `${safeHost(url)}: failed: ${msg}${res.stderr.trim() ? '' : ` [stdout ${res.stdout.length} bytes]`}`)
     throw new Error(msg)
   }
@@ -159,8 +188,7 @@ export function friendlyError(stderr: string): string {
   const lines = stderr.split(/\r?\n/).filter((l) => l.trim())
   const err = [...lines].reverse().find((l) => /ERROR/.test(l)) ?? lines[lines.length - 1] ?? tm('error.unknown')
   let msg = err.replace(/^ERROR:\s*/, '').replace(/^\[[^\]]+\]\s*[\w-]+:\s*/, '')
-  if (/confirm you.re not a bot/i.test(msg))
-    return tm('error.botCheck')
+  if (BOT_CHECK.test(msg)) return tm('error.botCheck', { helper: '' })
   if (/private video|members-only|sign in to confirm your age|age-restricted|requires login|login required/i.test(msg))
     msg = tm('error.needsLogin', { msg })
   else if (/sign in|login|cookies/i.test(msg)) msg = tm('error.loginHint', { msg })
@@ -503,12 +531,14 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     job.onLog?.(`kept existing file untouched: ${existingPath}`)
     return { outputPath: existingPath, skipped: true }
   }
-  if (res.code !== 0 && !res.stalled && /confirm you.re not a bot/i.test(res.stderr) && !job.signal?.aborted && settings.potHelper === 'auto') {
-    // Sign-in check on the download itself: one more run with the PO-token helper engaged.
-    job.onLog?.('sign-in check on download; retrying once with the PO-token helper')
+  if (res.code !== 0 && !res.stalled && BOT_CHECK.test(res.stderr) && !job.signal?.aborted && settings.potHelper !== 'off') {
+    // Sign-in check on the download itself: one more run with the PO-token helper and the clients it can token.
+    job.onLog?.(`sign-in check on download; retrying once with the token helper and player clients ${TOKEN_CLIENTS}`)
     const withPot = [...commonArgs(settings, job.media.url || job.url, true), ...args.slice(commonArgs(settings, job.media.url || job.url).length)]
     parts.length = 0
     res = await launch(withPot)
+    if (res.code !== 0 && !res.stalled && BOT_CHECK.test(res.stderr) && !job.signal?.aborted)
+      throw new BotCheckError(tm('error.botCheck', { helper: helperNote(settings, res.stderr) }))
   }
   if (res.code !== 0 && infoFresh && !res.stalled && /403|expired|Requested format is not available|HTTP Error 4/i.test(res.stderr)) {
     // Saved URLs went stale: extract again once, the slow-but-sure way.

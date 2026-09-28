@@ -11,6 +11,7 @@ import { convertVideo } from '../engine/transcode'
 import { updateEngine } from '../engine/updater'
 import { tm } from '../i18n'
 import { engineLog } from '../engine/log'
+import { BOT_RETRY_DELAYS_MS, isBotCheckError } from '../engine/botcheck'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -26,6 +27,8 @@ export interface QueueEvents {
 export class QueueManager extends EventEmitter {
   private rows: QueueRow[] = []
   private aborters = new Map<string, AbortController>()
+  private botTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private botAttempts = new Map<string, number>()
   /** Rows whose abort means "pause" (keep partials) rather than "stop" (discard them). */
   private pausing = new Set<string>()
   /** Rows the user explicitly asked to download again: skip the "already in history" shortcut once. */
@@ -151,22 +154,69 @@ export class QueueManager extends EventEmitter {
     for (const r of fresh) void this.fetch(r.id)
   }
 
+  /** Delays between automatic retries after a sign-in check; TUBERX_BOT_RETRY_MS=a,b overrides them in development. */
+  private botRetryDelays(): number[] {
+    const env = process.env.TUBERX_BOT_RETRY_MS
+    if (env && !app.isPackaged) {
+      const list = env.split(',').map(Number).filter((n) => n > 0)
+      if (list.length) return list
+    }
+    return BOT_RETRY_DELAYS_MS
+  }
+
+  /**
+   * A sign-in check usually clears by itself after a short wait. Instead of leaving the row stuck with a red
+   * message, retry it on a schedule and show the countdown; the row stays "failed" so Retry still works at once.
+   * Returns false when the retries are used up (the row keeps its final message).
+   */
+  private scheduleBotRetry(id: string, msg: string, action: () => void): boolean {
+    const delays = this.botRetryDelays()
+    const n = this.botAttempts.get(id) ?? 0
+    if (n >= delays.length) {
+      this.botAttempts.delete(id)
+      engineLog(id, `sign-in check: ${delays.length} automatic retries used; leaving the row for the user`)
+      this.update(id, { status: 'failed', error: msg, errorKind: 'botCheck', retryAt: undefined, retryAttempt: undefined, retryTotal: undefined, progress: undefined })
+      return false
+    }
+    this.botAttempts.set(id, n + 1)
+    const delay = delays[n]
+    this.update(id, { status: 'failed', error: msg, errorKind: 'botCheck', retryAt: Date.now() + delay, retryAttempt: n + 1, retryTotal: delays.length, progress: undefined })
+    engineLog(id, `sign-in check: automatic retry ${n + 1}/${delays.length} in ${Math.round(delay / 1000)} s`)
+    this.botTimers.set(
+      id,
+      setTimeout(() => {
+        this.botTimers.delete(id)
+        action()
+      }, delay),
+    )
+    return true
+  }
+
+  private clearBotRetry(id: string) {
+    const t = this.botTimers.get(id)
+    if (t) clearTimeout(t)
+    this.botTimers.delete(id)
+  }
+
   private async fetch(id: string) {
     const row = this.rows.find((r) => r.id === id)
     if (!row) return
+    this.clearBotRetry(id)
     const ac = new AbortController()
     this.aborters.set(id, ac)
-    this.update(id, { status: 'fetching', error: undefined })
+    this.update(id, { status: 'fetching', error: undefined, errorKind: undefined, retryAt: undefined, retryAttempt: undefined, retryTotal: undefined })
     let retry = false
     try {
       const media: MediaItem = await fetchMetadata(row.url, this.getSettings(), { signal: ac.signal })
       const formatId = pickFormat(media, row.formatId)
+      this.botAttempts.delete(id)
       this.update(id, { media, formatId, status: 'ready' })
       if (this.autoStart.delete(id) && !media.isPlaylist) this.start([id])
     } catch (e) {
       if (ac.signal.aborted) return
       const msg = (e as Error).message
-      if (await this.selfHeal(msg, id)) retry = true
+      if (isBotCheckError(e)) this.scheduleBotRetry(id, msg, () => void this.fetch(id))
+      else if (await this.selfHeal(msg, id)) retry = true
       else this.update(id, { status: 'failed', error: msg })
     } finally {
       this.aborters.delete(id)
@@ -180,6 +230,10 @@ export class QueueManager extends EventEmitter {
   }
 
   remove(ids: string[]) {
+    for (const id of ids) {
+      this.clearBotRetry(id)
+      this.botAttempts.delete(id)
+    }
     for (const id of ids) this.aborters.get(id)?.abort()
     this.rows = this.rows.filter((r) => !ids.includes(r.id))
     this.db.deleteRows(ids)
@@ -215,6 +269,7 @@ export class QueueManager extends EventEmitter {
   }
 
   start(ids: string[]) {
+    for (const id of ids) this.clearBotRetry(id)
     for (const id of ids) {
       const row = this.rows.find((r) => r.id === id)
       if (!row || !row.media || row.media.isPlaylist) continue
@@ -228,6 +283,9 @@ export class QueueManager extends EventEmitter {
   retry(id: string) {
     const row = this.rows.find((r) => r.id === id)
     if (!row) return
+    // A manual retry is a fresh start: the automatic schedule begins again if the check comes back.
+    this.clearBotRetry(id)
+    this.botAttempts.delete(id)
     if (!row.media) return void this.fetch(id)
     this.start([id])
   }
@@ -420,6 +478,8 @@ export class QueueManager extends EventEmitter {
           cleanupPartials(media.title, row.destination || settings.destination)
           this.update(row.id, { status: 'ready', progress: undefined, error: undefined })
         }
+      } else if (isBotCheckError(e)) {
+        this.scheduleBotRetry(row.id, msg, () => this.start([row.id]))
       } else if (await this.selfHeal(msg, row.id)) {
         this.update(row.id, { status: 'queued', error: undefined, progress: undefined }) // the engine changed underneath; one more go
       } else this.update(row.id, { status: 'failed', error: msg, progress: undefined })
