@@ -354,7 +354,7 @@ function commitProxy(): void {
       </section>
 
       <!-- Network -->
-      <section class="border-b border-tx-border py-4">
+      <section id="network" class="border-b border-tx-border py-4">
         <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.network.title') }}</h3>
         <label class="block text-[12px]">
           {{ t('settings.network.proxy') }}

@@ -96,6 +96,12 @@ export interface QueueRow {
   progress?: DownloadProgress
   outputPath?: string
   error?: string
+  /** Set with `error` when the failure was YouTube's sign-in check, so the row can offer the network settings. */
+  errorKind?: 'botCheck'
+  /** An automatic retry is scheduled for this time (sign-in check); the row shows the countdown. */
+  retryAt?: number
+  retryAttempt?: number
+  retryTotal?: number
   /** Every format this row has produced → the name tag it was saved under ('' = plain name). A repeat refreshes its own file. */
   downloadedVariants?: Record<string, string>
 }

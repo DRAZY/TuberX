@@ -91,19 +91,26 @@ const lastReport = ref(0)
 const now = ref(Date.now())
 let ticker: ReturnType<typeof setInterval> | undefined
 watch(
-  () => progress.value,
-  (p, prev) => {
+  () => [progress.value, props.row.retryAt] as const,
+  ([p, retryAt], prev) => {
     now.value = Date.now()
     lastReport.value = now.value
-    if (p?.stage !== prev?.stage) stageSince.value = now.value
+    if (p?.stage !== prev?.[0]?.stage) stageSince.value = now.value
     if (ticker) clearInterval(ticker)
     ticker = undefined
-    if (p) ticker = setInterval(() => (now.value = Date.now()), 1000)
+    if (p || retryAt) ticker = setInterval(() => (now.value = Date.now()), 1000)
   },
   { immediate: true },
 )
 onUnmounted(() => ticker && clearInterval(ticker))
 const quietFor = computed(() => Math.round((now.value - lastReport.value) / 1000))
+/** Countdown to the automatic retry after a sign-in check; driven by the one-second ticker above. */
+const retryCountdown = computed(() => {
+  const at = props.row.retryAt
+  if (!at || status.value !== 'failed') return ''
+  const seconds = Math.max(0, Math.ceil((at - now.value) / 1000))
+  return t('row.botRetry', { seconds, attempt: props.row.retryAttempt ?? 1, total: props.row.retryTotal ?? 1 })
+})
 
 const progressLine = computed(() => {
   const p = progress.value
@@ -191,10 +198,11 @@ function openPlaylist(): void {
 
       <p
         v-if="status === 'failed'"
-        class="mt-0.5 line-clamp-3 break-words text-[11px] leading-snug text-red-400"
+        class="mt-0.5 line-clamp-3 break-words text-[11px] leading-snug"
+        :class="retryCountdown ? 'text-amber-400' : 'text-red-400'"
         :title="row.error ?? t('row.downloadFailed')"
       >
-        {{ row.error ?? t('row.downloadFailed') }}
+        {{ retryCountdown || row.error || t('row.downloadFailed') }}
       </p>
 
       <div v-if="media" class="mt-1 flex flex-wrap items-center gap-1.5">
@@ -378,6 +386,9 @@ function openPlaylist(): void {
         </template>
 
         <template v-else-if="status === 'failed'">
+          <button v-if="row.errorKind === 'botCheck'" type="button" class="tx-btn-ghost" @click="ui.open('settings', 'network')">
+            {{ t('row.networkSettings') }}
+          </button>
           <button type="button" class="tx-btn-ghost" @click="queue.retry(row.id)">{{ t('common.retry') }}</button>
         </template>
 
