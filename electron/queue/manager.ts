@@ -64,6 +64,11 @@ export class QueueManager extends EventEmitter {
   private active = 0
   private getSettings: () => Settings
 
+  /** True while any download is running (an app update waits for it before restarting on its own). */
+  get busy(): boolean {
+    return this.active > 0
+  }
+
   constructor(private db: TuberDb, getSettings: () => Settings) {
     super()
     this.getSettings = getSettings

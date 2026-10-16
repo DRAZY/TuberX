@@ -15,8 +15,8 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "bun test",
     "tools:fetch": "bun scripts/fetch-tools.ts",
-    "build:mac": "rm -rf dist dist-electron && vite build && electron-builder --mac --arm64",
-    "build:all": "rm -rf dist dist-electron && vite build && electron-builder --mac --arm64 && electron-builder --win --x64",
+    "build:mac": "rm -rf dist dist-electron && vite build && APPLE_KEYCHAIN_PROFILE=strata-notary electron-builder --mac --arm64",
+    "build:all": "rm -rf dist dist-electron && vite build && APPLE_KEYCHAIN_PROFILE=strata-notary electron-builder --mac --arm64 && electron-builder --win --x64",
     "pot:fetch": "bun scripts/fetch-pot.ts"
   },
   "dependencies": {
@@ -52,6 +52,7 @@
       "dist-electron/**/*",
       "package.json"
     ],
+    "afterAllArtifactBuild": "scripts/after-all-artifacts.cjs",
     "extraResources": [
       {
         "from": "THIRD_PARTY_LICENSES.md",
@@ -142,13 +143,9 @@
       ],
       "icon": "public/icon.png",
       "category": "public.app-category.utilities",
-      "identity": "-",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "signIgnore": [
-        "Contents/Resources/bin/",
-        "Contents/Resources/pot/"
-      ],
+      "notarize": true,
+      "sign": "scripts/mac-sign.cjs",
       "extraResources": [
         {
           "from": "resources/bin/darwin",
@@ -182,7 +179,9 @@
       ]
     },
     "dmg": {
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "sign": true,
+      "writeUpdateInfo": false
     },
     "npmRebuild": false,
     "portable": {

@@ -196,7 +196,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:check', () => checkForUpdate(true))
   ipcMain.handle('update:install', () => installUpdate())
-  ipcMain.handle('update:canInstall', () => canInstallInPlace)
+  ipcMain.handle('update:canInstall', () => canInstallInPlace())
 
   // ---- about ----
   ipcMain.handle('app:info', (): AppInfo => ({

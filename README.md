@@ -83,11 +83,21 @@ TuberX has no site list of its own: every `http(s)` link goes to the bundled [yt
 - **Windows 10/11 (x64):** run `TuberX-Setup-<version>-x64.exe`, or use `TuberX-Portable-<version>-x64.exe` with no install. The portable build is self-extracting, so allow it a moment on launch while it expands. Both keep settings, history and logs in `%APPDATA%\TuberX`.
 - **macOS 13 or newer (Apple silicon):** open the `.dmg` and drag TuberX to Applications.
 
-TuberX checks GitHub Releases for a new version 15 seconds after it opens and then every hour (Settings → About lets you pick every six hours, daily, launch only, or never), and again when the machine wakes from sleep. A new build raises a message in the app with a "Get the update" button, marks the Settings icon, and shows under Settings → About; every check is written to the engine log. The Windows installer build downloads and applies the update in place; the portable exe and the Mac build open the release page for the new file. Nothing installs without you, and the check can be turned off.
+The Mac app is signed with a Developer ID certificate and notarized by Apple, so it opens like any other app with no security prompt.
 
-### macOS: first launch
+### Updates
 
-The Mac build is signed ad hoc, not notarized with an Apple developer certificate, so the first launch shows "Apple could not verify TuberX is free of malware". Click Done, open System Settings → Privacy & Security, scroll to the notice about TuberX and click **Open Anyway**. Right-click → Open on the app also works. This is a one-time step; updates keep the permission.
+TuberX checks GitHub Releases for a new version 15 seconds after it opens and then every hour (Settings → About lets you pick every six hours, daily, launch only, or never), and again when the machine wakes from sleep. A new build raises a message in the app, marks the Settings icon, and shows under Settings → About; every check is written to the engine log. Nothing installs until you click **Install update**, and the check can be turned off.
+
+Install downloads the new version with a progress bar, checks it, and restarts TuberX into it. If downloads are running, it waits and offers **Restart to install** instead of interrupting them.
+
+- **Windows installer:** the new installer runs silently and starts the new version.
+- **Windows portable:** TuberX downloads the new exe and refuses it unless its SHA-256 matches the digest GitHub recorded for the file and the `.sha256` published beside it. It then puts the new exe in place of the old one (same file name, so shortcuts keep working) and starts it. The old copy is deleted on the next start. If the exe sits in a folder TuberX cannot write to, it opens the release page instead.
+- **macOS:** the update is the signed `.zip` from the release. macOS itself checks that it carries the same developer signature before swapping it in.
+
+If an in-place install fails, TuberX says why, keeps running, and offers the release page.
+
+**Coming from 0.3.10 or earlier on a Mac:** those builds were signed ad hoc, and macOS will only let an app replace itself with a build signed the same way. Download the new `.dmg` once and drag TuberX to Applications, replacing the old copy (settings, history and logs are kept). Every update after that installs itself.
 
 ## Window
 
@@ -151,6 +161,8 @@ bun run build:mac                    # macOS arm64 dmg + zip
 ```
 
 macOS builds also need `bash scripts/build-aria2-mac.sh` once, because no static arm64 aria2c is published upstream.
+
+`build:mac` signs with the `Developer ID Application` certificate in the login keychain and notarizes the app and the dmg through the notarytool keychain profile named in `APPLE_KEYCHAIN_PROFILE` (`strata-notary` in the script; create one with `xcrun notarytool store-credentials`). No password is stored in the repo. The bundled tools are signed with hardened runtime and only the entitlements they need (`scripts/mac-sign.cjs`, `build/entitlements.mac.*.plist`): Deno gets `allow-jit` for V8, everything else gets none. A release needs `latest-mac.yml`, the `-mac.zip` and its `.blockmap` uploaded beside the dmg for in-app updates, and the Windows release needs `latest.yml` and the portable exe's `.sha256`.
 
 Architecture in short: Electron + Vue 3 + Pinia + Tailwind, bundled by Vite and electron-builder. The engine is a set of external processes under `resources/bin/<platform>/` (`yt-dlp` onedir, `ffmpeg`, `aria2c`, `deno`) driven over stdout by the main process; the renderer never touches the file system or spawns anything. State is a SQLite database (node:sqlite) plus an electron-store settings file; secrets go through Electron's safeStorage.
 
