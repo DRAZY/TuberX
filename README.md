@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/DRAZY/TuberX/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/DRAZY/TuberX?color=e0393e&label=release" /></a>
   <a href="https://github.com/DRAZY/TuberX/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/DRAZY/TuberX/total?color=e0393e&label=downloads" /></a>
-  <a href="https://github.com/DRAZY/TuberX/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/DRAZY/TuberX?color=e0393e" /></a>
+  <a href="https://github.com/DRAZY/TuberX/stargazers"><img alt="Stars" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2FDRAZY%2FTuberX&query=%24.stargazers_count&label=stars&color=e0393e&cacheSeconds=3600" /></a>
   <a href="https://github.com/DRAZY/TuberX/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/DRAZY/TuberX/actions/workflows/ci.yml/badge.svg" /></a>
   <img alt="Last commit" src="https://img.shields.io/github/last-commit/DRAZY/TuberX?color=e0393e" />
   <br />
