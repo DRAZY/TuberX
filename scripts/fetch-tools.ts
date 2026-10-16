@@ -6,7 +6,7 @@
  *   bun scripts/fetch-tools.ts darwin --force --only=ffmpeg --only=ffprobe
  * Idempotent: skips files that already exist unless --force.
  */
-import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, symlinkSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { $ } from 'bun'
 
@@ -47,6 +47,36 @@ async function onedir(url: string, dest: string, exeInZip: string, exeName = exe
   await $`tar -xf ${zip} -C ${dest}`.quiet()
   if (exeInZip !== exeName) renameSync(join(dest, exeInZip), join(dest, exeName))
   rmSync(zip, { force: true })
+  relinkFrameworks(dest)
+}
+
+/**
+ * yt-dlp's macOS zip stores no symlinks, so PyInstaller's Python.framework arrives with `Python`, `Resources`
+ * and `Versions/Current` as full copies. Ad-hoc signing tolerates that; Developer ID signing does not
+ * ("bundle format is ambiguous (could be app or framework)"). Restore the standard versioned layout:
+ * Versions/Current -> <version>, and each top-level entry -> Versions/Current/<entry>.
+ */
+function relinkFrameworks(dir: string) {
+  for (const e of readdirSync(dir)) {
+    const p = join(dir, e)
+    if (lstatSync(p).isSymbolicLink() || !statSync(p).isDirectory()) continue
+    if (!e.endsWith('.framework')) {
+      relinkFrameworks(p)
+      continue
+    }
+    const versions = join(p, 'Versions')
+    if (!existsSync(versions)) continue
+    const named = readdirSync(versions).filter((v) => v !== 'Current')
+    if (named.length !== 1) throw new Error(`${p}: expected one version, found ${named.join(', ')}`)
+    rmSync(join(versions, 'Current'), { recursive: true, force: true })
+    symlinkSync(named[0], join(versions, 'Current'))
+    for (const top of readdirSync(p)) {
+      if (top === 'Versions' || !existsSync(join(versions, named[0], top))) continue
+      rmSync(join(p, top), { recursive: true, force: true })
+      symlinkSync(join('Versions', 'Current', top), join(p, top))
+    }
+    console.log(`  ✓ relinked ${e} (Versions/Current -> ${named[0]})`)
+  }
 }
 
 /** Extract one file (by basename) out of a zip/tar into dest. Uses system unzip/tar (macOS + Linux hosts). */

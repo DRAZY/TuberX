@@ -556,7 +556,10 @@ function commitProxy(): void {
         <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
           <template v-if="store.appUpdate.state === 'available'">
             <span class="text-tx-text">{{ t('update.available', { version: store.appUpdate.latest ?? '' }) }}</span>
-            <button type="button" class="tx-btn-accent !py-0.5 text-xs" @click="store.installUpdate()">{{ store.canInstall ? t('update.install') : t('update.download') }}</button>
+            <button type="button" class="tx-btn-accent !py-0.5 text-xs" @click="store.installUpdate()">{{ store.canInstall && !store.appUpdate.manualReason ? t('update.install') : t('update.download') }}</button>
+            <span v-if="store.appUpdate.manualReason === 'unsigned'" class="basis-full text-tx-muted">{{ t('update.manual.unsigned') }}</span>
+            <span v-else-if="store.appUpdate.manualReason === 'readonly'" class="basis-full text-tx-muted">{{ t('update.manual.readonly') }}</span>
+            <span v-else-if="store.appUpdate.manualReason === 'failed'" class="basis-full text-tx-muted">{{ t('update.manual.failed', { error: store.appUpdate.error ?? '' }) }}</span>
           </template>
           <template v-else-if="store.appUpdate.state === 'downloading'">
             <span class="text-tx-muted">{{ t('update.downloading', { percent: store.appUpdate.progress ?? 0 }) }}</span>

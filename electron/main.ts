@@ -12,7 +12,7 @@ import { setPotReachable } from './engine/ytdlp'
 import { lookup } from 'node:dns/promises'
 import { QueueManager } from './queue/manager'
 import { registerMediaScheme, serveMedia } from './media'
-import { scheduleUpdateChecks } from './appUpdate'
+import { cleanupPortableUpdate, scheduleUpdateChecks, setUpdateBusyCheck } from './appUpdate'
 import { getSettings } from './settings'
 import { tm } from './i18n'
 import { engineLog, engineLogPath } from './engine/log'
@@ -216,6 +216,8 @@ app.whenReady().then(async () => {
   })
   registerIpc(queue, db)
   createWindow()
+  setUpdateBusyCheck(() => queue?.busy ?? false)
+  cleanupPortableUpdate()
   scheduleUpdateChecks()
   handleArgv(process.argv)
 

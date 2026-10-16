@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-export type SysTool = 'taskkill' | 'attrib' | 'tar' | 'rundll32' | 'shutdown' | 'pgrep' | 'open' | 'osascript'
+export type SysTool = 'taskkill' | 'attrib' | 'tar' | 'rundll32' | 'shutdown' | 'pgrep' | 'open' | 'osascript' | 'codesign'
 
 /**
  * Absolute path of an operating-system utility.

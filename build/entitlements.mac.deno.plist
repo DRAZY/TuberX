@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Deno runs the PO-token helper and yt-dlp's JavaScript challenge solver. V8 compiles JavaScript to
+     machine code at run time, which hardened runtime refuses without allow-jit. Nothing else is granted:
+     the canvas addon Deno loads is signed with our Team ID, so library validation stays on. -->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+  </dict>
+</plist>

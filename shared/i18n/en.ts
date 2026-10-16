@@ -391,6 +391,14 @@ export const en = {
   'update.every.never': 'Never (check manually)',
   'update.everyHint': 'Asks GitHub Releases for the newest build and tells you with a message in the app. Nothing is installed without you.',
   'update.toast': 'TuberX {version} is available',
+  'update.installFailed': 'Could not install the update: {error}. Use “Get the update” to download it from the release page.',
+  'update.restarting': 'Restarting into TuberX {version}…',
+  'update.readyToast': 'TuberX {version} is ready. Restart to install it.',
+  'update.noFeed': 'the update feed has no newer build yet',
+  'update.noPortableAsset': 'this release has no portable download',
+  'update.manual.unsigned': 'This update needs a one-time manual download: builds from now on are signed by Apple-registered developer Andre Hall, and the older build cannot install them by itself. Download it, replace TuberX in Applications, and later updates install themselves.',
+  'update.manual.readonly': 'TuberX cannot write to the folder it runs from, so it cannot replace itself there. Download the new version, or move TuberX to a folder you can write to.',
+  'update.manual.failed': 'Installing in place did not work ({error}). Download the new version from the release page instead.',
 
   // ---- engine update results ----
   'engine.updateFailed': 'Update failed',

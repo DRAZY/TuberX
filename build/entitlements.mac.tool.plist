@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Bundled command-line tools (ffmpeg, aria2c, yt-dlp and its Python runtime, the PO-token helper's
+     native canvas addon): hardened runtime with no exceptions. Everything they load is inside the app
+     and signed with the same Team ID, so library validation passes without disabling it. -->
+<plist version="1.0">
+  <dict/>
+</plist>

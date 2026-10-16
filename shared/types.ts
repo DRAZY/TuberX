@@ -297,6 +297,12 @@ export interface UpdateStatus {
   progress?: number
   checkedAt?: number
   error?: string
+  /**
+   * Set when "Install" opens the release page instead of updating in place: an ad-hoc-signed Mac build
+   * ('unsigned', a one-time manual download), a portable exe in a read-only folder ('readonly'), a dev run
+   * ('dev'), no in-place path on this platform ('unsupported'), or an in-place install that failed ('failed').
+   */
+  manualReason?: 'unsigned' | 'readonly' | 'dev' | 'unsupported' | 'failed'
 }
 
 /** What the About section shows: the build the user is running and where it comes from. */
@@ -378,9 +384,9 @@ export interface TuberXApi {
   update: {
     status(): Promise<UpdateStatus>
     check(): Promise<UpdateStatus>
-    /** Download and apply on the Windows installer build; opens the release page elsewhere. */
+    /** Download, verify and restart into the update; opens the release page when it cannot install in place. */
     install(): Promise<void>
-    /** True when the update can be applied in place (Windows installer build). */
+    /** True when the update can be applied in place (Windows installer or portable, Developer-ID-signed Mac). */
     canInstall(): Promise<boolean>
   }
   power: {
