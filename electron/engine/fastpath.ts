@@ -3,6 +3,7 @@ import { basename, extname, join } from 'node:path'
 import type { DownloadProgress, FormatOption, MediaItem, OutputKind, Settings } from '../../shared/types'
 import { PROGRESS_TEMPLATE, parseAria2Line, parseProgressLine } from '../../shared/progress'
 import { run } from './run'
+import { aria2ExitCode, withoutAria2 } from './aria2'
 import { resolveTool, toolDirs } from './paths'
 import { bestEncoder, encoderArgs } from './encoders'
 import { inspect } from './transcode'
@@ -146,9 +147,10 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   }
   const tStreams = Date.now()
   const stream = async (id: string, i: number): Promise<string> => {
-    const args = [...ctx.common, '--load-info-json', infoPath, '-f', id, '-o', join(ctx.tempDir, `${stem}.f${id}.%(ext)s`),
+    let args = [...ctx.common, '--load-info-json', infoPath, '-f', id, '-o', join(ctx.tempDir, `${stem}.f${id}.%(ext)s`),
       '--no-quiet', '--newline', '--progress', '--progress-template', PROGRESS_TEMPLATE, '--no-mtime', '--no-playlist', ...(ctx.aria2 ?? [])]
     let attempt = 0
+    let nativeRetry = false
     for (;;) {
       const res = await run(ctx.bin, args, {
         env: ctx.env, pathPrepend: toolDirs(), signal: job.signal, idleTimeoutMs: TRANSFER_IDLE_MS,
@@ -166,6 +168,15 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
       if (job.signal?.aborted) throw new Error('cancelled')
       if (res.stalled && attempt++ < 2) {
         log(`stream ${id}: no data for 90 s, restarting (${attempt}/2), resuming from disk`)
+        continue
+      }
+      const ariaCode = ctx.aria2 && !nativeRetry && res.code !== 0 ? aria2ExitCode(res.stderr) : null
+      if (ariaCode !== null) {
+        // The server refused aria2c's many connections; the same stream over one connection usually works (issue #10).
+        log(`stream ${id}: aria2c exited with code ${ariaCode}; retrying this stream with yt-dlp's own downloader`)
+        args = withoutAria2(args)
+        nativeRetry = true
+        downloader = 'native'
         continue
       }
       if (res.code !== 0) throw new Error(res.stderr.trim().split('\n').pop() || `stream ${id} failed (${res.code})`)

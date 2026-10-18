@@ -8,6 +8,7 @@ import { ffmpegLocation, potDir, resolveTool, toolDirs, userBinDir } from './pat
 import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, renameSync, rmdirSync, statSync, writeFileSync as writeFile } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { BOT_CHECK, BotCheckError, TOKEN_CLIENTS, helperFailure, isYouTubeUrl } from './botcheck'
+import { aria2ExitCode, withoutAria2 } from './aria2'
 import { basename } from 'node:path'
 import { run, type RunResult } from './run'
 import { app } from 'electron'
@@ -288,6 +289,15 @@ export function dropLocalTemp(destination: string): void {
   }
 }
 
+/**
+ * The aria2c to hand transfers to. Development only: TUBERX_ARIA2_BIN points at a stand-in (for instance a
+ * script that exits 22) so the fallback to yt-dlp's own downloader can be exercised without a refusing server.
+ */
+function aria2Binary(): string | null {
+  if (!app.isPackaged && process.env.TUBERX_ARIA2_BIN) return process.env.TUBERX_ARIA2_BIN
+  return resolveTool('aria2c')
+}
+
 /** yt-dlp flags that hand https transfers to aria2c with sixteen connections; fragment streams stay native. */
 function aria2Flags(aria2: string, settings: Settings): string[] {
   // --summary-interval=1: aria2c prints its "[#gid done/total(pct%) CN DL ETA]" line once a second; the
@@ -316,7 +326,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   const { settings, format } = job
   mkdirSync(job.destination, { recursive: true })
 
-  const args = [
+  let args = [
     ...commonArgs(settings, job.media.url || job.url),
     ...buildFormatArgs(format, settings),
     // --print implies --quiet, which silences the progress lines; --no-quiet restores them.
@@ -378,7 +388,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
 
   // aria2c: many connections per file. yt-dlp resolves the name on PATH, so the bin dir is
   // prepended to PATH in run(); the explicit path below is belt and braces on Windows.
-  const aria2 = settings.useAria2 ? resolveTool('aria2c') : null
+  const aria2 = settings.useAria2 ? aria2Binary() : null
   if (aria2) {
     // --summary-interval=1: aria2c prints its "[#gid done/total(pct%) CN DL ETA]" line once a second; the
     // default is every 60 s, which left the bar at 0 % for the whole of a fast transfer. Notice-level
@@ -404,7 +414,7 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
         job.media.infoJsonPath = fresh.infoJsonPath
         job.media.fetchedAt = fresh.fetchedAt
       }
-      const aria2c = settings.useAria2 ? resolveTool('aria2c') : null
+      const aria2c = settings.useAria2 ? aria2Binary() : null
       const fast = () => downloadFast(
         {
           media: job.media, format, formatArgs: buildFormatArgs(format, settings), destination: job.destination,
@@ -539,6 +549,15 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
     res = await launch(withPot)
     if (res.code !== 0 && !res.stalled && BOT_CHECK.test(res.stderr) && !job.signal?.aborted)
       throw new BotCheckError(tm('error.botCheck', { helper: helperNote(settings, res.stderr) }))
+  }
+  const ariaCode = aria2 && res.code !== 0 && !res.stalled && !job.signal?.aborted ? aria2ExitCode(res.stderr) : null
+  if (ariaCode !== null) {
+    // The server refused aria2c's many connections; one more run on yt-dlp's own downloader (issue #10).
+    job.onLog?.(`aria2c exited with code ${ariaCode}; retrying with yt-dlp's own downloader`)
+    args = withoutAria2(args)
+    parts.length = 0
+    downloader = 'native'
+    res = await launch(args)
   }
   if (res.code !== 0 && infoFresh && !res.stalled && /403|expired|Requested format is not available|HTTP Error 4/i.test(res.stderr)) {
     // Saved URLs went stale: extract again once, the slow-but-sure way.
