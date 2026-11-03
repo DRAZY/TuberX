@@ -1,4 +1,4 @@
-import type { Chapter, FormatOption, MediaItem, PlaylistEntry, SubtitleTrack } from './types'
+import type { AudioLanguage, Chapter, FormatOption, MediaItem, OutputKind, PlaylistEntry, SubtitleTrack } from './types'
 import { playlistUrlFromVideoUrl } from './urls'
 
 /** Loose shape of `yt-dlp --dump-single-json` — we only type what we read. */
@@ -43,6 +43,8 @@ export interface YtDlpFormat {
   filesize_approx?: number
   protocol?: string
   format_note?: string
+  language?: string | null
+  language_preference?: number
 }
 
 const STANDARD_HEIGHTS = [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144]
@@ -151,6 +153,49 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
   return out
 }
 
+/**
+ * The audio languages a video offers, original first. Empty unless there is a real choice. yt-dlp reports
+ * the original track with a language_preference above the dubs and a note like
+ * "English (US) original (default), medium"; a dub's note is "French, medium".
+ */
+export function audioLanguages(formats: YtDlpFormat[] | undefined): AudioLanguage[] {
+  const found = new Map<string, AudioLanguage>()
+  for (const f of formats ?? []) {
+    if (!f.language || !f.acodec || f.acodec === 'none' || !AUDIO_LANGUAGE_CODE.test(f.language)) continue
+    const original = (f.language_preference ?? 0) > 0 || /\boriginal\b/i.test(f.format_note ?? '')
+    const name = (f.format_note ?? '').split(',')[0].replace(/\s+original\b.*$/i, '').trim() || f.language
+    const known = found.get(f.language)
+    if (!known) found.set(f.language, { code: f.language, name, ...(original ? { original } : {}) })
+    else if (original) known.original = true
+  }
+  if (found.size < 2) return []
+  return [...found.values()].sort((a, b) => Number(!!b.original) - Number(!!a.original) || a.name.localeCompare(b.name))
+}
+
+/** What the picker and the engine accept as a language code. It ends up inside a format selector and a file name. */
+export const AUDIO_LANGUAGE_CODE = /^[A-Za-z0-9-]{1,35}$/
+
+const LANGUAGE_KINDS: ReadonlySet<OutputKind> = new Set<OutputKind>(['video', 'mp3', 'm4a', 'wav', 'm4r'])
+/** Video-only and subtitles-only outputs have no audio to choose. */
+export const takesAudioLanguage = (kind: OutputKind): boolean => LANGUAGE_KINDS.has(kind)
+
+/**
+ * The same option restricted to one audio language, with its own id so its file is tracked apart from the
+ * default track's. Every alternative in the selector is filtered: if the language is gone the download
+ * fails with yt-dlp's "Requested format is not available" rather than quietly saving the wrong language.
+ * `bv*` becomes `bv` because `bv*` may resolve to a muxed format, and yt-dlp then drops the requested audio
+ * from the merge and keeps the muxed format's own language.
+ */
+export function withAudioLanguage(format: FormatOption, code: string | undefined): FormatOption {
+  if (!code || !takesAudioLanguage(format.kind) || !AUDIO_LANGUAGE_CODE.test(code)) return format
+  const filter = `[language=${code}]`
+  const selector = format.selector
+    .split('/')
+    .map((alt) => (alt === 'b' ? `b${filter}` : alt.replace('bv*+', 'bv+').replace(/\bba\b/, `ba${filter}`)))
+    .join('/')
+  return { ...format, id: `${format.id}@${code}`, selector }
+}
+
 function pickThumbnail(j: YtDlpJson): string | undefined {
   if (j.thumbnail) return j.thumbnail
   const t = j.thumbnails ?? []
@@ -208,6 +253,7 @@ export function normalizeMedia(json: YtDlpJson, requestedUrl: string): MediaItem
         .filter((e) => !!e.url)
     : undefined
 
+  const languages = audioLanguages(formats)
   const defaultFormatId = hasVideo ? 'v:best' : options.find((o) => o.kind === 'm4a')?.id ?? 'a:mp3'
   return {
     id: json.id ?? requestedUrl,
@@ -224,6 +270,7 @@ export function normalizeMedia(json: YtDlpJson, requestedUrl: string): MediaItem
     entries,
     formats: options,
     subtitles: subs,
+    ...(languages.length ? { audioLanguages: languages } : {}),
     chapters: isPlaylist ? [] : chapters(json),
     defaultFormatId,
     requiresLogin: json.availability === 'needs_auth' || json.availability === 'subscriber_only',

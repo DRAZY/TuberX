@@ -115,6 +115,7 @@ export function registerIpc(queue: QueueManager, db: TuberDb) {
   ipcMain.handle('queue:setFormat', (_e, id: string, formatId: string) => queue.setFormat(id, formatId))
   ipcMain.handle('queue:reorder', (_e, ids: string[]) => queue.reorder(ids))
   ipcMain.handle('queue:setFormatAll', (_e, formatId: string) => queue.setFormatAll(formatId))
+  ipcMain.handle('queue:setAudioLanguage', (_e, id: string, code: string | null) => queue.setAudioLanguage(id, code))
   ipcMain.handle('queue:start', (_e, ids: string[]) => queue.start(ids))
   ipcMain.handle('queue:cancel', (_e, id: string) => queue.cancel(id))
   ipcMain.handle('queue:pause', (_e, id: string) => queue.pause(id))

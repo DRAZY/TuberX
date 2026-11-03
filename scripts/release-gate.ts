@@ -27,6 +27,9 @@ interface Case {
   subtitles?: boolean
   /** frame width the output must have (rung correctness on non-16:9 sources) */
   width?: number
+  /** the row's audio language pick, and the language its downloaded audio stream must have */
+  audioLanguage?: string
+  expectAudio?: string
 }
 const CASES: Case[] = [
   { name: 'YouTube 1440p (VP9 copy)', url: 'https://www.youtube.com/watch?v=LXb3EKWsInQ', format: 'v:1440', ext: 'mp4', vcodec: /^vp9$/, acodec: /^aac$/, cover: true, encode: 'never' },
@@ -42,6 +45,10 @@ const CASES: Case[] = [
   { name: 'Dailymotion HLS video', url: 'http://www.dailymotion.com/video/x5kesuj_office-christmas-party-review-jason-bateman-olivia-munn-t-j-miller_news', format: 'v:best', ext: 'mp4', vcodec: /^h264$/, acodec: /^aac$/, cover: true, encode: 'never' },
   { name: 'Dailymotion video → M4A', url: 'http://www.dailymotion.com/video/x5kesuj_office-christmas-party-review-jason-bateman-olivia-munn-t-j-miller_news', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either' },
   { name: '9gag WebM-only → MP4', url: 'https://9gag.com/gag/ae5Ag7B', format: 'v:best', ext: 'mp4', vcodec: /^(h264|vp9)$/, acodec: /^aac$/, cover: true, encode: 'either' },
+  // A dubbed video: the row's language pick must decide the audio stream, and the original stays the default.
+  { name: 'YouTube French dub, video', url: 'https://www.youtube.com/watch?v=0e3GPea1Tyg', format: 'v:360', ext: 'mp4', vcodec: /^h264$/, acodec: /^aac$/, cover: true, encode: 'never', audioLanguage: 'fr', expectAudio: 'fr' },
+  { name: 'YouTube Chinese dub → M4A', url: 'https://www.youtube.com/watch?v=0e3GPea1Tyg', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either', audioLanguage: 'zh-Hans', expectAudio: 'zh-Hans' },
+  { name: 'YouTube dubbed, default track', url: 'https://www.youtube.com/watch?v=0e3GPea1Tyg', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either', expectAudio: 'en-US' },
   { name: 'archive.org silent film', url: 'https://archive.org/details/Cops1922', format: 'v:360', ext: 'mp4', vcodec: /^(h264|theora|mpeg4)$/, acodec: undefined, cover: true, encode: 'either' },
 ]
 
@@ -117,6 +124,7 @@ for (let round = 0; ; round++) {
     const x = find(r, c.url)
     if (!x || x.status === 'failed') { results.push({ c, ok: false, detail: `fetch failed: ${x?.error ?? 'row missing'}` }); continue }
     await js(`window.tuberx.setFormat(${JSON.stringify(x.id)}, ${JSON.stringify(c.format)})`)
+    await js(`window.tuberx.setAudioLanguage(${JSON.stringify(x.id)}, ${JSON.stringify(c.audioLanguage ?? null)})`)
     ids.push(x.id)
   }
   const before = readdirSync(dest)
@@ -161,6 +169,15 @@ for (let round = 0; ; round++) {
     if (c.maxDuration && seconds && seconds > c.maxDuration) problems.push(`duration ${seconds}s > ${c.maxDuration}s`)
     if (c.width && width !== c.width) problems.push(`width ${width ?? '?'} ≠ ${c.width}`)
     if (!doneLine) problems.push('fast path did not run (classic fallback)')
+    if (c.expectAudio) {
+      // What actually downloaded, from the job's own stream list, against the language yt-dlp reports for those ids.
+      const info = JSON.parse(readFileSync(x.media.infoJsonPath, 'utf8')) as { formats: { format_id: string; acodec?: string; language?: string }[] }
+      const ids = doneLine.match(/streams [\d.]+s \(([^,)]+)/)?.[1].split('+') ?? []
+      const got = ids.map((i) => info.formats.find((f) => f.format_id === i)).filter((f) => f && f.acodec !== 'none').map((f) => f!.language)
+      if (got.join() !== c.expectAudio) problems.push(`audio language ${got.join() || 'none'} ≠ ${c.expectAudio} (streams ${ids.join('+')})`)
+      const tagged = out.includes(`${c.audioLanguage ?? ''}].`) && !!c.audioLanguage
+      if (!!c.audioLanguage !== tagged) problems.push(`file name does not carry the language: ${out}`)
+    }
     if (c.encode === 'never' && Number.isFinite(finish) && finish > 5) problems.push(`finish ${finish}s for a copy`)
     results.push({ c, ok: !problems.length, detail: problems.join('; ') || `${video?.codec ?? '-'}${width ? ` ${frame![1]}x${frame![2]}` : ''}/${audio?.codec ?? '-'}${cover ? ' +cover' : ''}${subs ? ' +subs' : ''}${encoded ? ' encoded' : ' copy'} finish ${finish}s`, seconds: Math.round((Date.now() - t1) / 1000) })
   }

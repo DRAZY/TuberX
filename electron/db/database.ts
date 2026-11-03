@@ -74,6 +74,7 @@ export class TuberDb {
     // (a missing column surfaces on the first write as an opaque "SQL logic error").
     const columns = new Set((this.db.prepare('PRAGMA table_info(queue)').all() as { name: string }[]).map((c) => c.name))
     if (!columns.has('downloaded_variants')) this.db.exec('ALTER TABLE queue ADD COLUMN downloaded_variants TEXT')
+    if (!columns.has('audio_language')) this.db.exec('ALTER TABLE queue ADD COLUMN audio_language TEXT')
   }
 
   /** Run one statement per value inside a single transaction. */
@@ -101,6 +102,7 @@ export class TuberDb {
       // anything that was mid-flight when we died comes back as ready (or fetching → re-fetch)
       status: r.status === 'downloading' || r.status === 'converting' || r.status === 'queued' ? 'ready' : r.status,
       formatId: r.format_id ?? undefined,
+      audioLanguage: r.audio_language ?? undefined,
       destination: r.destination,
       media: r.media_json ? JSON.parse(r.media_json) : undefined,
       outputPath: r.output_path ?? undefined,
@@ -112,11 +114,11 @@ export class TuberDb {
   saveRow(row: QueueRow, position: number) {
     this.db
       .prepare(
-        `INSERT INTO queue (id,url,added_at,status,format_id,destination,media_json,output_path,error,position,downloaded_variants)
-         VALUES (@id,@url,@added_at,@status,@format_id,@destination,@media_json,@output_path,@error,@position,@downloaded_variants)
+        `INSERT INTO queue (id,url,added_at,status,format_id,destination,media_json,output_path,error,position,downloaded_variants,audio_language)
+         VALUES (@id,@url,@added_at,@status,@format_id,@destination,@media_json,@output_path,@error,@position,@downloaded_variants,@audio_language)
          ON CONFLICT(id) DO UPDATE SET status=excluded.status, format_id=excluded.format_id, destination=excluded.destination,
            media_json=excluded.media_json, output_path=excluded.output_path, error=excluded.error, position=excluded.position,
-           downloaded_variants=excluded.downloaded_variants`,
+           downloaded_variants=excluded.downloaded_variants, audio_language=excluded.audio_language`,
       )
       .run({
         id: row.id,
@@ -130,6 +132,7 @@ export class TuberDb {
         error: row.error ?? null,
         position,
         downloaded_variants: row.downloadedVariants ? JSON.stringify(row.downloadedVariants) : null,
+        audio_language: row.audioLanguage ?? null,
       })
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { rungOf, buildFormatOptions, formatDuration, normalizeMedia, snapHeight } from '../shared/normalize'
+import { audioLanguages, rungOf, buildFormatOptions, formatDuration, normalizeMedia, snapHeight, takesAudioLanguage, withAudioLanguage } from '../shared/normalize'
 import video from './fixtures/youtube-video.json'
 import playlist from './fixtures/youtube-playlist.json'
 import track from './fixtures/soundcloud-track.json'
@@ -102,5 +102,56 @@ describe('rungs for non-16:9 videos', () => {
     expect(rungOf({ format_id: 'b', height: 1920, width: 1080 })).toBe(1080)
     expect(rungOf({ format_id: 'c', height: 1080, width: 1920 })).toBe(1080)
     expect(rungOf({ format_id: 'd', height: 1076 })).toBe(1080)
+  })
+})
+
+describe('audio languages (issue #13)', () => {
+  const dubbed = [
+    { format_id: '616', vcodec: 'vp9', acodec: 'none', height: 1080 },
+    { format_id: '140-12', vcodec: 'none', acodec: 'mp4a.40.2', language: 'fr', language_preference: -1, format_note: 'French, medium' },
+    { format_id: '251-4', vcodec: 'none', acodec: 'opus', language: 'fr', language_preference: -1, format_note: 'French, medium' },
+    { format_id: '140-2', vcodec: 'none', acodec: 'mp4a.40.2', language: 'zh-Hans', language_preference: -1, format_note: 'Chinese (Simplified), medium' },
+    { format_id: '140-23', vcodec: 'none', acodec: 'mp4a.40.2', language: 'en-US', language_preference: 10, format_note: 'English (US) original (default), medium' },
+  ]
+  const option = (id: string) => buildFormatOptions(dubbed, true).find((o) => o.id === id)!
+
+  test('lists each language once, original first, with a clean name', () => {
+    expect(audioLanguages(dubbed)).toEqual([
+      { code: 'en-US', name: 'English (US)', original: true },
+      { code: 'zh-Hans', name: 'Chinese (Simplified)' },
+      { code: 'fr', name: 'French' },
+    ])
+  })
+  test('no choice, no list: one language, no language, or video streams only', () => {
+    expect(audioLanguages(undefined)).toEqual([])
+    expect(audioLanguages([{ format_id: '140', acodec: 'aac', language: 'en' }, { format_id: '251', acodec: 'opus', language: 'en' }])).toEqual([])
+    expect(audioLanguages([{ format_id: '140', acodec: 'aac' }, { format_id: '251', acodec: 'opus', language: null }])).toEqual([])
+    expect(audioLanguages([{ format_id: '616', vcodec: 'vp9', acodec: 'none', language: 'fr' }, { format_id: '140', acodec: 'aac', language: 'en' }])).toEqual([])
+  })
+  test('a code that could break out of a selector is never offered or applied', () => {
+    expect(audioLanguages([{ format_id: 'a', acodec: 'aac', language: 'en]+b' }, { format_id: 'b', acodec: 'aac', language: 'fr' }])).toEqual([])
+    const v = option('v:best')
+    expect(withAudioLanguage(v, 'fr]/b')).toBe(v)
+  })
+  test('every alternative is filtered and the video half cannot be muxed', () => {
+    const fr = withAudioLanguage(option('v:1080'), 'fr')
+    expect(fr.selector).toBe('bv+ba[language=fr]/b[language=fr]')
+    expect(fr.id).toBe('v:1080@fr')
+    expect(fr.sort).toBe(option('v:1080').sort)
+    expect(withAudioLanguage(option('a:mp3'), 'zh-Hans').selector).toBe('ba[language=zh-Hans]/b[language=zh-Hans]')
+    expect(withAudioLanguage(option('a:m4a'), 'fr').selector).toBe('ba[language=fr][ext=m4a]/ba[language=fr]/b[language=fr]')
+  })
+  test('no language, or an output with no audio: the option is untouched', () => {
+    const v = option('v:best')
+    expect(withAudioLanguage(v, undefined)).toBe(v)
+    const silent = option('vo:best')
+    expect(withAudioLanguage(silent, 'fr')).toBe(silent)
+    expect(takesAudioLanguage('video-only')).toBe(false)
+    expect(takesAudioLanguage('subs')).toBe(false)
+    expect(takesAudioLanguage('mp3')).toBe(true)
+  })
+  test('normalizeMedia carries the list only when there is a choice', () => {
+    expect(normalizeMedia({ id: 'x', title: 't', formats: dubbed } as any, 'u').audioLanguages?.length).toBe(3)
+    expect('audioLanguages' in normalizeMedia({ id: 'x', title: 't', formats: dubbed.slice(0, 1) } as any, 'u')).toBe(false)
   })
 })

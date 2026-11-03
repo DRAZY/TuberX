@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import type { QueueRow } from '@shared/types'
-import { formatBytes, formatDuration, heightLabel } from '@shared/normalize'
+import { formatBytes, formatDuration, heightLabel, takesAudioLanguage } from '@shared/normalize'
 import { formatEta } from '@/lib/paths'
 import { bestVideoHeight, bestVideoOption, qualityBadge } from '@/lib/formats'
 import Icon from '@/components/Icon.vue'
@@ -10,7 +10,7 @@ import FormatSelect from '@/components/FormatSelect.vue'
 import { useQueueStore } from '@/stores/queue'
 import { useUiStore } from '@/stores/ui'
 import { useSettingsStore } from '@/stores/settings'
-import { t } from '@/lib/i18n'
+import { locale, t } from '@/lib/i18n'
 import type { MessageKey } from '@shared/i18n'
 
 const props = defineProps<{ row: QueueRow }>()
@@ -43,6 +43,35 @@ const effectiveFormatId = computed(() => {
 
 const selectedFormat = computed(() => formats.value.find((f) => f.id === effectiveFormatId.value))
 const sizeHint = computed(() => formatBytes(selectedFormat.value?.filesize))
+
+/** The audio language picker: only for a video that has dubs, and only for an output that has audio. */
+const languages = computed(() => media.value?.audioLanguages ?? [])
+const showLanguages = computed(() => languages.value.length > 1 && !!selectedFormat.value && takesAudioLanguage(selectedFormat.value.kind))
+/** "" is the site's default track. A dub that a refetch dropped falls back to it, as the engine does. */
+const effectiveLanguage = computed(() => (languages.value.some((l) => l.code === props.row.audioLanguage && !l.original) ? props.row.audioLanguage! : ''))
+const languageChoices = computed(() => {
+  let names: Intl.DisplayNames | undefined
+  try {
+    names = new Intl.DisplayNames([locale.value], { type: 'language' })
+  } catch {
+    /* the extractor's English names below */
+  }
+  const named = (code: string, fallback: string) => {
+    try {
+      return names?.of(code) ?? fallback
+    } catch {
+      return fallback
+    }
+  }
+  const original = languages.value.find((l) => l.original)
+  return [
+    { value: '', label: original ? t('row.audioOriginal', { language: named(original.code, original.name) }) : t('row.audioDefault') },
+    ...languages.value
+      .filter((l) => !l.original)
+      .map((l) => ({ value: l.code, label: named(l.code, l.name) }))
+      .sort((a, b) => a.label.localeCompare(b.label, locale.value)),
+  ]
+})
 
 /** The top rung the extractor offered; "best" carries no height of its own. */
 const bestHeight = computed(() => bestVideoHeight(formats.value))
@@ -254,6 +283,19 @@ function openPlaylist(): void {
           <Icon name="close" :size="14" />
         </button>
       </div>
+
+      <select
+        v-if="!isPlaylistRow && showLanguages"
+        data-testid="audio-language"
+        class="mr-5 h-7 max-w-[190px] rounded border border-tx-border bg-tx-bg px-2 text-xs text-tx-text outline-none transition-colors hover:border-tx-accent focus:border-tx-accent disabled:cursor-not-allowed disabled:opacity-50"
+        :value="effectiveLanguage"
+        :disabled="formatLocked"
+        :title="t('row.audioLanguage')"
+        :aria-label="t('row.audioLanguage')"
+        @change="queue.setAudioLanguage(row.id, ($event.target as HTMLSelectElement).value || null)"
+      >
+        <option v-for="c in languageChoices" :key="c.value" :value="c.value">{{ c.label }}</option>
+      </select>
 
       <div
         v-if="!isPlaylistRow && (upgradeHint || sizeHint)"
