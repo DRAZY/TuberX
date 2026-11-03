@@ -47,6 +47,7 @@ You found a video, a talk, a mix, an album, a lecture series. You want it as a f
 
 ### Quality you can see
 - **The full ladder per video**, from best down to 360p, with frame rate and an estimated finished size beside each choice, plus MP3, M4A, WAV, an M4R ringtone and subtitles-only. An "Apply to all" control sets one choice for the whole list.
+- **Audio language.** A video with several audio languages gets a language picker on its row, next to the quality. A dub keeps its language in the file name (`[fr]`), so it never replaces another language.
 - **Finished files.** MP4 with H.264/AAC preferred so it plays on stock Windows; subtitles embedded (auto-captions as fallback); chapters from the video's timestamps; cover art; title and artist tags. MP3 at your chosen bitrate (320 kbps by default). M4A as the original stream, no re-encode. WAV as lossless 16-bit PCM for editing.
 - **Your codec, your GPU.** Choose H.264 for compatibility or H.265 for smaller files. Sources that arrive in VP9 or AV1 are converted after the download with the hardware encoder on your machine (Apple VideoToolbox, NVIDIA NVENC, Intel Quick Sync, AMD AMF), software as the fallback, with progress on the row.
 
@@ -107,6 +108,7 @@ TuberX opens as a compact applet (600×680) centred on your main display, painte
 
 - **Language:** system language or one of eight.
 - **Destination:** default is `Videos\TuberX`; the last fifteen folders you picked are remembered.
+- **Window:** start with the window maximized.
 - **Output:** default quality, convert non-MP4 sources, video codec (auto / H.264 / H.265 with the detected hardware encoder), MP3 bitrate.
 - **Subtitles:** embed, also save `.srt` files, languages.
 - **Thumbnails:** save beside the file as JPG or PNG.
