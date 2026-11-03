@@ -262,6 +262,8 @@ export const fr: MessageTable = {
   'settings.applyNote': 'Les modifications s’appliquent immédiatement.',
   'settings.language.title': 'Langue',
   'settings.language.system': 'Langue du système',
+  'settings.window.title': 'Fenêtre',
+  'settings.window.startMaximized': 'Démarrer avec la fenêtre agrandie',
   'settings.destination.title': 'Destination',
   'settings.destination.none': 'Aucun dossier choisi pour l’instant',
   'settings.destination.recent': 'Dossiers récents',

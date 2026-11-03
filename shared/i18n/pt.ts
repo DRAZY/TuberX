@@ -262,6 +262,8 @@ export const pt: MessageTable = {
   'settings.applyNote': 'As alterações valem na hora.',
   'settings.language.title': 'Idioma',
   'settings.language.system': 'Idioma do sistema',
+  'settings.window.title': 'Janela',
+  'settings.window.startMaximized': 'Iniciar com a janela maximizada',
   'settings.destination.title': 'Destino',
   'settings.destination.none': 'Nenhuma pasta escolhida ainda',
   'settings.destination.recent': 'Pastas recentes',

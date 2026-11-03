@@ -262,6 +262,8 @@ export const es: MessageTable = {
   'settings.applyNote': 'Los cambios se aplican al instante.',
   'settings.language.title': 'Idioma',
   'settings.language.system': 'Idioma del sistema',
+  'settings.window.title': 'Ventana',
+  'settings.window.startMaximized': 'Iniciar con la ventana maximizada',
   'settings.destination.title': 'Destino',
   'settings.destination.none': 'Todavía no has elegido carpeta',
   'settings.destination.recent': 'Carpetas recientes',

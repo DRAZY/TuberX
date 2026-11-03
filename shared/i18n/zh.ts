@@ -262,6 +262,8 @@ export const zh: MessageTable = {
   'settings.applyNote': '更改立即生效。',
   'settings.language.title': '语言',
   'settings.language.system': '跟随系统',
+  'settings.window.title': '窗口',
+  'settings.window.startMaximized': '启动时最大化窗口',
   'settings.destination.title': '保存位置',
   'settings.destination.none': '尚未选择文件夹',
   'settings.destination.recent': '最近使用的文件夹',

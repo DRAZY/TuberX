@@ -145,6 +145,8 @@ function createWindow() {
   const showAnyway = (why: string) => {
     if (!w || w.isDestroyed() || w.isVisible()) return
     engineLog('app', `window shown: ${why}`)
+    // Here and not at creation: maximize() also shows the window, which would flash it before the first paint.
+    if (getSettings().startMaximized) w.maximize()
     w.show()
   }
   const deadline = setTimeout(() => showAnyway('ready-to-show never fired (10 s)'), 10_000)
