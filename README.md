@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <strong>TuberX turns a link into a finished file. Paste, pick a quality, done.</strong>
+  <strong>TuberX downloads video and audio from a link and saves it as a finished file.</strong>
   <br /><br />
-  A fast, private video and audio downloader for Windows and Apple-silicon Macs. It produces MP4, MP3, M4A or WAV files that are ready to use the moment they land: tags, cover art, chapters and subtitles already inside. YouTube, Vimeo, Instagram, Dailymotion, SoundCloud, Mixcloud, Reddit, Bilibili and the 1,700 other sites the yt-dlp engine knows, with an engine that updates itself so a site change never waits for an app release. Pick the audio language on dubbed videos, trim clips on a preview, split by timecodes, follow playlists and channels, convert to H.264 or H.265 on your GPU. No account, no telemetry, no upsell.
+  It's a desktop app for Windows and Apple-silicon Macs. Paste a link, pick a quality, and you get an MP4, MP3, M4A or WAV with the tags, cover art, chapters and subtitles already inside. It works with YouTube, Vimeo, Instagram, Dailymotion, SoundCloud, Mixcloud, Reddit, Bilibili and the 1,700 other sites the yt-dlp engine knows. yt-dlp updates itself, so a site change usually doesn't have to wait for a new version of the app. You can also pick the audio language on dubbed videos, trim clips, split by timecodes, follow playlists and channels, and convert to H.264 or H.265 on your GPU. There's no account, no telemetry and nothing to pay for.
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 
 ## What TuberX is for
 
-You found a video, a talk, a mix, an album, a lecture series. You want it as a file on your machine, in the format your player or editor expects, without a browser extension farm, a converter website or a "premium" nag. TuberX is that one window. It is built for people who download often: a queue that survives a crash, a quality you can see before you commit, a Later list, a history that remembers where every file went, and subscriptions that fetch the new uploads for you.
+TuberX is for when you want a video, talk, mix, album or lecture series as a file on your machine, in the format your player or editor expects, without browser extensions, converter websites or "premium" nags. It's built for people who download often. The queue survives a crash, you see the quality before you commit, there's a Later list, History remembers where every file went, and subscriptions pick up new uploads for you.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="TuberX main window" width="600" />
@@ -38,43 +38,43 @@ You found a video, a talk, a mix, an album, a lecture series. You want it as a f
 
 ## Features
 
-### Add links your way
-- **Paste and go.** Ctrl+V anywhere in the window, right-click › Paste link, drag a link in, or drop a text file full of links. A link copied while you were in the browser is offered the moment you come back: one click adds it, or adds and downloads it.
+### Adding links
+- **Pasting links.** Press Ctrl+V anywhere in the window, right-click and choose Paste link, drag a link in, or drop a text file of links. If you copied a link in your browser, TuberX offers it when you come back, and one click adds it or adds and downloads it.
 - **Playlists and channels.** A playlist link opens a picker with search, select-all and Download all later. A single video that belongs to a playlist asks which you meant.
 - **Subscriptions.** Follow a playlist or channel from the picker. Every launch (and every six hours while open) TuberX spots the new videos, badges the count in the title bar, and queues them in one click.
 - **Browser extension.** Send the current page or any link from Chrome, Edge or Firefox with a click or Ctrl+Shift+P (Ctrl+Shift+L for Download Later).
-- **Queue you control.** Drag rows to set the download order. Select several and act on them together. Export the queue, Later or History as a text file of links.
+- **The queue.** Drag rows to set the download order. Select several and act on them together. Export the queue, Later or History as a text file of links.
 
-### Quality you can see
-- **The full ladder per video**, from best down to 360p, with frame rate and an estimated finished size beside each choice, plus MP3, M4A, WAV, an M4R ringtone and subtitles-only. An "Apply to all" control sets one choice for the whole list.
+### Quality and formats
+- **Every quality a video offers**, from best down to 360p, with frame rate and an estimated finished size beside each choice, plus MP3, M4A, WAV, an M4R ringtone and subtitles-only. An "Apply to all" control sets one choice for the whole list.
 - **Audio language.** A video with several audio languages gets a language picker on its row, next to the quality. A dub keeps its language in the file name (`[fr]`), so it never replaces another language.
 - **Finished files.** MP4 with H.264/AAC preferred so it plays on stock Windows; subtitles embedded (auto-captions as fallback); chapters from the video's timestamps; cover art; title and artist tags. MP3 at your chosen bitrate (320 kbps by default). M4A as the original stream, no re-encode. WAV as lossless 16-bit PCM for editing.
-- **Your codec, your GPU.** Choose H.264 for compatibility or H.265 for smaller files. Sources that arrive in VP9 or AV1 are converted after the download with the hardware encoder on your machine (Apple VideoToolbox, NVIDIA NVENC, Intel Quick Sync, AMD AMF), software as the fallback, with progress on the row.
+- **Video codec.** Choose H.264 for compatibility or H.265 for smaller files. Sources that arrive in VP9 or AV1 are converted after the download with the hardware encoder on your machine (Apple VideoToolbox, NVIDIA NVENC, Intel Quick Sync, AMD AMF), software as the fallback, with progress on the row.
 
-### Edit without another app
+### Editing
 - **Trim with preview.** Scrub the downloaded video, set in and out points (chapters are one-click presets), and export the clip as MP4, M4A or a 40-second M4R ringtone. Instant keyframe cuts or frame-accurate re-encoded cuts. The original is never touched. If the preview cannot decode a file (8K or HDR without hardware decoding), the dialog says so and the in/out fields, chapter presets and export keep working from the file's own duration.
 - **Split by timecodes.** Paste a tracklist or use the video's chapters: one file per part with titles and track numbers, or write the list into the file as chapters.
 - **Batch rename.** Prefix, suffix, numbering and a live preview of every new name across the selected rows. Rows and history follow the rename.
 - **Select and remove.** Click, Cmd/Ctrl-click and Cmd/Ctrl+A select rows in the download list, History and Download Later; Delete or Backspace removes the selection, and a "Remove selected" button appears while anything is selected. "Clear finished" drops every completed row from the list in one click. Files on disk are never touched by any of these.
 
-### Fast and unbreakable
-- **Speed.** A parallel engine: the video track, the audio track, the subtitles and the cover download at the same time, each through aria2c with sixteen connections, and one ffmpeg pass then writes the finished file once with everything inside. Measured on a 245 MB 1080p60 video, 53 s became 23 s. Audio outputs take the same route: the audio stream and the cover arrive together and one ffmpeg pass extracts, tags and embeds the artwork, for MP3, M4A, WAV and M4R alike. Sites that only serve WebM (VP8/VP9 video, Vorbis or Opus audio) still produce a plain MP4: the finishing pass encodes to H.264/AAC on the GPU where one exists. Up to eight downloads at once, HLS/DASH fragments in parallel, an optional speed limit for shared networks. Links resolve in a couple of seconds and downloads begin immediately from the metadata already fetched.
+### Speed and reliability
+- **Speed.** The video track, audio track, subtitles and cover all download at the same time, each through aria2c with sixteen connections, and one ffmpeg pass then writes the finished file. On a 245 MB 1080p60 video, that took the download from 53 s to 23 s. Audio outputs work the same way for MP3, M4A, WAV and M4R: the audio stream and cover arrive together, and one ffmpeg pass extracts, tags and embeds the artwork. Sites that only serve WebM (VP8/VP9 video, Vorbis or Opus audio) still give you a plain MP4, encoded to H.264/AAC on the GPU where there is one. You can run up to eight downloads at once, HLS/DASH fragments download in parallel, and there's an optional speed limit for shared networks. Links resolve in a couple of seconds, and downloads start right away from the metadata already fetched.
 - **Pause, Stop, Resume, Download again.** Pause keeps what has been transferred. A different quality of a file you already have lands beside it, never over it.
-- **Self-healing.** A transfer that goes silent restarts itself and resumes. A site that changed its pages triggers an immediate yt-dlp update and a retry. The engine also checks for a new build daily, independent of app releases. Every engine line is logged and one click away for support. Every engine update is verified before it is unpacked or run: its SHA-256 must match the yt-dlp release's own `SHA2-256SUMS` and the digest GitHub recorded for the file, and it must come from the yt-dlp project's release storage. A download that fails is discarded and the current engine stays in place.
+- **Recovering from problems.** A transfer that goes quiet restarts and picks up where it stopped. If a site changed its pages, TuberX updates yt-dlp right away and tries again. It also checks for a new yt-dlp daily, separately from app updates. Every engine line goes in a log you can open in one click. Every engine update is verified before it is unpacked or run: its SHA-256 must match the yt-dlp release's own `SHA2-256SUMS` and the digest GitHub recorded for the file, and it must come from the yt-dlp project's release storage. A download that fails is discarded and the current engine stays in place.
 - **After the queue.** Open the folder, put the machine to sleep or shut it down when the last download finishes, with a 30-second warning you can cancel. Finished rows open in the default app, in an app you choose, or reveal in the folder.
 
 ### Access and privacy
-- **No account needed.** Cookies, a site login and a video password are there for private, age-restricted or members-only media, and only then. Passwords live in the OS keychain. A user-agent choice (desktop, iPhone, Android) is available for sites that serve phones differently.
+- **No account needed.** Cookies, a site login and a video password are only needed for private, age-restricted or members-only media. Passwords live in the OS keychain. A user-agent choice (desktop, iPhone, Android) is available for sites that serve phones differently.
 - **Network.** Proxy, Prefer IPv4 (on by default, which is what clears YouTube's "confirm you're not a bot"), and a bundled PO-token helper.
-- **Private by construction.** No analytics, no crash reporting, no accounts, MIT licensed. Settings, history and logs stay in your app-data folder.
+- **Privacy.** TuberX has no analytics, crash reporting or accounts, and it's MIT licensed. Settings, history and logs stay in your app-data folder.
 - **Eight languages.** English, Español, Deutsch, Français, Português, Italiano, 日本語, 简体中文, following the system or your pick.
 
 ## Supported sites
 
-TuberX has no site list of its own: every `http(s)` link goes to the bundled [yt-dlp](https://github.com/yt-dlp/yt-dlp) engine, so the answer is [yt-dlp's supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), 1,751 extractors at engine 2026.08.19. The engine updates itself daily, so a new or repaired extractor reaches you without an app release. Some plain truths about that list:
+TuberX sends every `http(s)` link to the bundled [yt-dlp](https://github.com/yt-dlp/yt-dlp) engine, so the list is [yt-dlp's supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), 1,751 extractors at engine 2026.08.19. The engine updates itself daily, so a new or repaired extractor reaches you without an app release. A few things to know about that list:
 
-- **"Supported" means "has an extractor", not "works today".** Sites change and break; yt-dlp itself marks about 136 of those extractors as currently broken at any time. When an extractor breaks mid-download, TuberX retries and the next engine update usually repairs it.
-- **Some sites need identity.** Instagram, Patreon, private Vimeo, age-gated YouTube and most of X need your cookies (Settings → Network: from Chrome, Edge, Firefox or Brave, or an imported cookies.txt) or a site login (Settings → Access). Nothing is sent anywhere but to that site.
+- **"Supported" means there's an extractor for the site.** Sites change and break, and yt-dlp itself marks about 136 of those extractors as currently broken at any time. When an extractor breaks mid-download, TuberX retries and the next engine update usually repairs it.
+- **Some sites need you to sign in.** Instagram, Patreon, private Vimeo, age-gated YouTube and most of X need your cookies (Settings → Network: from Chrome, Edge, Firefox or Brave, or an imported cookies.txt) or a site login (Settings → Access). Nothing is sent anywhere but to that site.
 - **DRM services are out** (Netflix, Disney+, Spotify and the like). yt-dlp does not decrypt DRM and neither does TuberX.
 
 **Tested and working with TuberX:** YouTube (videos, Shorts, playlists, channels, subtitles, every quality rung and every audio format), Vimeo, Dailymotion, SoundCloud, Mixcloud, Instagram, Reddit, Bilibili, Twitch clips, Streamable, VK, Loom, Dropbox, The New York Times, Pinterest, Substack, iHeartRadio, Nebula, 9gag, Imgur, tumblr and the Internet Archive.
@@ -102,7 +102,7 @@ If an in-place install fails, TuberX says why, keeps running, and offers the rel
 
 ## Window
 
-TuberX opens as a compact applet (600×680) centred on your main display, painted before it is shown so there is no white flash. Resize or move it and it reopens exactly there next time; if that spot is no longer on a connected display it falls back to the centred default. Minimum size is 480×420. Prefer it big? Turn on Settings → Window → "Start with the window maximized". It opens at full size, not fullscreen, and un-maximizing returns to your remembered size.
+TuberX opens as a small window (600×680) centred on your main display, with no white flash while it loads. Resize or move it and it reopens exactly there next time; if that spot is no longer on a connected display it falls back to the centred default. Minimum size is 480×420. To have it open at full size, turn on Settings → Window → "Start with the window maximized". That's maximized rather than fullscreen, and un-maximizing returns to your remembered size.
 
 ## Settings
 
@@ -162,7 +162,7 @@ bun scripts/fetch-pot.ts            # PO-token helper for both platforms
 bun run dev                          # Vite + Electron
 bun test                             # unit tests
 bun scripts/site-check.ts           # resolve one public URL per supported site
-bun scripts/release-gate.ts         # 14 end-to-end downloads through the dev app, asserted with ffmpeg, temp files removed after (TUBERX_CDP=1 bun run dev first)
+bun scripts/release-gate.ts         # 17 end-to-end downloads through the dev app, asserted with ffmpeg, temp files removed after (TUBERX_CDP=1 bun run dev first)
 bun run build:win                    # Windows installer + portable exe
 bun run build:mac                    # macOS arm64 dmg + zip
 ```
