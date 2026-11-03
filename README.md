@@ -5,7 +5,7 @@
 <p align="center">
   <strong>TuberX turns a link into a finished file. Paste, pick a quality, done.</strong>
   <br /><br />
-  A fast, private video and audio downloader for Windows and Apple-silicon Macs. It produces MP4, MP3, M4A or WAV files that are ready to use the moment they land: tags, cover art, chapters and subtitles already inside. YouTube, Vimeo, Instagram, Dailymotion, SoundCloud, Mixcloud, Reddit, Bilibili and the 1,700 other sites the yt-dlp engine knows, with an engine that updates itself so a site change never waits for an app release. Trim clips on a preview, split by timecodes, follow playlists and channels, convert to H.264 or H.265 on your GPU. No account, no telemetry, no upsell.
+  A fast, private video and audio downloader for Windows and Apple-silicon Macs. It produces MP4, MP3, M4A or WAV files that are ready to use the moment they land: tags, cover art, chapters and subtitles already inside. YouTube, Vimeo, Instagram, Dailymotion, SoundCloud, Mixcloud, Reddit, Bilibili and the 1,700 other sites the yt-dlp engine knows, with an engine that updates itself so a site change never waits for an app release. Pick the audio language on dubbed videos, trim clips on a preview, split by timecodes, follow playlists and channels, convert to H.264 or H.265 on your GPU. No account, no telemetry, no upsell.
 </p>
 
 <p align="center">
@@ -102,7 +102,7 @@ If an in-place install fails, TuberX says why, keeps running, and offers the rel
 
 ## Window
 
-TuberX opens as a compact applet (600×680) centred on your main display, painted before it is shown so there is no white flash. Resize or move it and it reopens exactly there next time; if that spot is no longer on a connected display it falls back to the centred default. Minimum size is 480×420.
+TuberX opens as a compact applet (600×680) centred on your main display, painted before it is shown so there is no white flash. Resize or move it and it reopens exactly there next time; if that spot is no longer on a connected display it falls back to the centred default. Minimum size is 480×420. Prefer it big? Turn on Settings → Window → "Start with the window maximized". It opens at full size, not fullscreen, and un-maximizing returns to your remembered size.
 
 ## Settings
 
@@ -127,7 +127,8 @@ TuberX never replaces a file you already have with a different format. The rules
 1. **A different quality or format of a link you already downloaded** lands beside the existing file with the quality in its name: `Title.mp4` stays, `Title [1080p].mp4` is added. This applies whether you use Download again on the row, or paste the link again after removing the row.
 2. **The same format again** (Download again on a row without changing the dropdown) refreshes that one file in place. It only does so when the file is on record as produced by that same format.
 3. **Audio formats never collide with video.** MP3, M4A and WAV have their own extensions, so they always sit beside the video.
-4. **Nothing on record** (history cleared, files copied from another machine): a video file in the destination with this title still counts as existing, and the new quality gets the tag. If yt-dlp still meets an existing file, TuberX stops it before anything is touched and retries with the tag.
+4. **A dubbed language gets its own file.** The language code goes in the name, like `Title [fr].m4a` or `Title [1080p fr].mp4`, so no language replaces another or the original.
+5. **Nothing on record** (history cleared, files copied from another machine): a video file in the destination with this title still counts as existing, and the new quality gets the tag. If yt-dlp still meets an existing file, TuberX stops it before anything is touched and retries with the tag.
 
 Settings → Downloads → "Re-downloading in a different format" switches rule 1 to *Replace the existing file* if you prefer one file per link.
 
@@ -138,6 +139,8 @@ Settings → Downloads → "Re-downloading in a different format" switches rule 
 **The end of a download takes a while.** With the parallel engine the finishing pass is a single write and takes about a second on an SSD; the log line `fast: done in …` breaks a job down into select, streams, finish and move so a slow step is named. The classic pipeline (Settings → Downloads → Parallel engine off) still works the old way: After the transfer, yt-dlp merges video and audio, embeds subtitles, writes tags and chapters, and moves the file, and each of those passes rewrites the whole file. The row names the pass and counts the seconds. Large files on a slow disk, a OneDrive folder or under antivirus scanning are the slow cases. When the destination is on another drive, TuberX keeps its temporary files there too, so the final step is a rename rather than a copy. A forced codec adds a conversion pass with its own progress.
 
 **"aria2c exited with code 22" or another aria2c code.** aria2c, the multi-connection downloader, was refused by the server for that file, most often YouTube rejecting many connections at once. Since 0.3.12 TuberX retries the file once with yt-dlp's own downloader and the engine log says so; turning aria2c off in Settings › Downloads is no longer needed.
+
+**"[Errno 13] Permission denied" naming a `tmp….tmp` file in `C:\Program Files\TuberX`.** Some videos uploaded in the last couple of days failed this way on Windows, because the engine tried to write a test file to the install folder. Fixed in 0.3.13: update and it goes away.
 
 **A download stops moving.** The row says "no data for N s" as soon as the engine goes quiet. After 90 s of silence TuberX kills the transfer and restarts it, and aria2c and yt-dlp continue from what is already on disk; after three silent runs in a row the row fails with a message. Stop and Pause always land within a few seconds, even when the downloader is wedged.
 
