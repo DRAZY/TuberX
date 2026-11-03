@@ -9,6 +9,7 @@ import { existsSync as fileExists, mkdirSync as mkdirp, readdirSync, renameSync,
 import { createHash } from 'node:crypto'
 import { BOT_CHECK, BotCheckError, TOKEN_CLIENTS, helperFailure, isYouTubeUrl } from './botcheck'
 import { aria2ExitCode, withoutAria2 } from './aria2'
+import { tempPathArgs } from './tempArgs'
 import { basename } from 'node:path'
 import { run, type RunResult } from './run'
 import { app } from 'electron'
@@ -60,6 +61,7 @@ function commonArgs(settings: Settings, url = '', forcePot = false): string[] {
   // The sign-in-check retry (forcePot) keeps warnings: the token helper reports its failures as warnings.
   const args = [...(forcePot ? [] : ['--no-warnings']), '--no-colors', '--ignore-config', '--no-playlist-reverse', '--encoding', 'utf-8']
   args.push('--cache-dir', join(app.getPath('userData'), 'yt-dlp-cache'))
+  args.push(...tempPathArgs(app.getPath('userData')))
   const ff = ffmpegLocation()
   if (ff) args.push('--ffmpeg-location', ff)
   const deno = resolveTool('deno')
