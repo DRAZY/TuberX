@@ -133,6 +133,16 @@ function commitProxy(): void {
         </select>
       </section>
 
+      <!-- Window -->
+      <section class="border-b border-tx-border py-4">
+        <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.window.title') }}</h3>
+        <Toggle
+          :model-value="store.settings.startMaximized"
+          :label="t('settings.window.startMaximized')"
+          @update:model-value="set('startMaximized', $event)"
+        />
+      </section>
+
       <!-- Destination -->
       <section class="border-b border-tx-border py-4">
         <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tx-muted">{{ t('settings.destination.title') }}</h3>

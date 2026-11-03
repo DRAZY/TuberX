@@ -167,6 +167,8 @@ Why: users think in "1080p MP4" and "MP3", and the download must be fast and hon
 - [ ] ISC-21: M4A output remuxes the original AAC/Opus stream without re-encoding when possible.
 - [x] ISC-22: Progress, speed and ETA update live from yt-dlp's newline progress output.
 - [x] ISC-91: A video that offers several audio languages shows a language picker on its row for any output with audio; the pick decides the downloaded audio stream, and the file name carries the language.
+- [ ] ISC-92: A brand-new video on a normal Windows install fetches without "[Errno 13] Permission denied": every yt-dlp run has a writable temp path (mechanism reproduced and fixed on macOS, Windows check pending).
+- [x] ISC-93: A "Start with the window maximized" setting opens the window maximized, not fullscreen, and un-maximizing returns to the remembered size.
 - [ ] ISC-23: An "Apply to all" control sets the chosen format on every row and optionally on new rows.
 - [ ] ISC-24: A failed row stays in the list with the error reason and a working Retry.
 - [ ] ISC-25: The destination picker defaults to `Videos\TuberX` and remembers up to 15 custom folders.
@@ -329,6 +331,8 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 
 - 2026-11-03: Audio language picker (issue #13). The reporter assumed Settings > Language chose the audio track; it only sets the interface language. yt-dlp reports a `language` per audio format, and the original track carries a positive `language_preference`. Decisions: (1) the pick is per row, stored in the `audio_language` queue column, with unset meaning the site's default track; (2) every selector alternative is filtered, so a missing language fails with "Requested format is not available" and never saves the wrong language; (3) `bv*` becomes `bv` under a language filter, because a muxed `bv*` makes yt-dlp drop the requested audio from the merge; (4) a dub's format id is `<id>@<code>` and its file name always carries the code, so languages never overwrite each other; (5) codes are checked against a strict pattern before reaching a selector or file name. Gate cases added: French video, Chinese M4A, and the default track of the same dubbed video.
 
+- 2026-11-03: Errno 13 on new videos (issue #14). yt-dlp test-downloads formats flagged `__needs_testing`, such as HLS on a YouTube video under two days old, and creates the test file in its temp path. With no `-P`, Windows resolves that path to `.`, the working folder, which is Program Files for an installed app, and the error fails the whole fetch. Downloads were safe because they set `-P`; metadata fetches did not. Fix: `-P temp:<userData>/tmp` in commonArgs, so every run has it; a later `-P temp:` still overrides it. The Mac app cannot hit this path, because `sanitize_path` only returns `.` there with `--windows-filenames`, so no gate case can catch it; a unit test guards the argument instead.
+
 ## Learning
 
 - conjectured: every named site resolves anonymously through yt-dlp with no site-specific code in TuberX. refuted by: `bun scripts/site-check.ts` 2026-09-02 — Vimeo's web client now refuses anonymous requests ("only works when logged-in"), while `player.vimeo.com/video/<id>` still serves the same video. learned: a URL rewrite is not extractor code; one embed fallback keeps the no-extractor principle intact. criterion now: ISC-28 passes via the player fallback (`vimeoPlayerUrl` in `shared/urls.ts`, retried in `fetchMetadata`).
@@ -347,6 +351,8 @@ Why: a downloader lives next to the browser; sending a page with one shortcut an
 
 ## Verification
 
+- ISC-92: reproduced on macOS with yt-dlp, `--windows-filenames` and an unwritable working folder (2026-11-03): new upload Nn4EZ1pOMqg failed with `[Errno 30] Read-only file system: '/tmpyz9_i7qx.tmp'`, passed with `-P temp:`; other new uploads passed both ways, which matches the reporter's "random". A later `-P temp:` overrode an earlier one. Gate 17/17 with the fix. Not yet run on Windows.
+- ISC-93: dev app across restarts (2026-11-03): setting off 875x799, on 1728x1020 (the full work area), off again 875x799.
 - ISC-91: audio language picker on `rc/0.3.13` (2026-11-03): release gate 17/17 with three new language cases, each checking the downloaded stream's language against yt-dlp's info JSON (134+140-12 = fr, 140-2 = zh-Hans, 140-23 = en-US). Driven in the dev app: 25 languages listed on a dubbed video, no picker on a single-language video or on video-only, pick survives a reload, a malformed code is refused. Same video at 360p default and fr produced two files, each refreshed in place on repeat. Classic engine, M4A in German: 140-5, `[de].m4a`. Tested on macOS only.
 - ISC-1, ISC-1.1: `bun run build:win` from macOS emits `release/TuberX-Setup-0.1.0-x64.exe` and `release/TuberX-Portable-0.1.0-x64.exe` (2026-09-02); left open until ISC-2 runs them on Windows.
 - ISC-1.2: `bun run build:all` → `release/TuberX-0.1.0-arm64.dmg`; packaged app launched, queue restored, docs/reference/tuberx-mac-packaged.png (2026-09-02).

@@ -262,6 +262,8 @@ export const ja: MessageTable = {
   'settings.applyNote': '変更はすぐに反映されます。',
   'settings.language.title': '言語',
   'settings.language.system': 'システムの言語',
+  'settings.window.title': 'ウィンドウ',
+  'settings.window.startMaximized': 'ウィンドウを最大化して起動',
   'settings.destination.title': '保存先',
   'settings.destination.none': 'フォルダが未選択です',
   'settings.destination.recent': '最近のフォルダ',

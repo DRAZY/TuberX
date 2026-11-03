@@ -262,6 +262,8 @@ export const it: MessageTable = {
   'settings.applyNote': 'Le modifiche hanno effetto immediato.',
   'settings.language.title': 'Lingua',
   'settings.language.system': 'Lingua di sistema',
+  'settings.window.title': 'Finestra',
+  'settings.window.startMaximized': 'Avvia con la finestra ingrandita',
   'settings.destination.title': 'Destinazione',
   'settings.destination.none': 'Nessuna cartella scelta',
   'settings.destination.recent': 'Cartelle recenti',

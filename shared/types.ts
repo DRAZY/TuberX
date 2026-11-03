@@ -226,6 +226,8 @@ export interface Settings {
   /** UI language: 'auto' follows the system locale, otherwise one of the shipped locales. */
   language: 'auto' | Locale
   /** Bumped when a default changes in a way existing installs should adopt. */
+  /** Open the window maximized (not fullscreen). The size it returns to on un-maximize is still remembered. */
+  startMaximized: boolean
   settingsVersion: number
 }
 
@@ -263,6 +265,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdateEngine: true,
   updateCheckEvery: 'hour',
   language: 'auto',
+  startMaximized: false,
   settingsVersion: 14,
 }
 

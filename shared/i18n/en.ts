@@ -283,6 +283,8 @@ export const en = {
   'settings.applyNote': 'Changes apply immediately.',
   'settings.language.title': 'Language',
   'settings.language.system': 'System language',
+  'settings.window.title': 'Window',
+  'settings.window.startMaximized': 'Start with the window maximized',
   'settings.destination.title': 'Destination',
   'settings.destination.none': 'No folder chosen yet',
   'settings.destination.recent': 'Recent folders',

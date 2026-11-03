@@ -262,6 +262,8 @@ export const de: MessageTable = {
   'settings.applyNote': 'Änderungen gelten sofort.',
   'settings.language.title': 'Sprache',
   'settings.language.system': 'Systemsprache',
+  'settings.window.title': 'Fenster',
+  'settings.window.startMaximized': 'Mit maximiertem Fenster starten',
   'settings.destination.title': 'Zielordner',
   'settings.destination.none': 'Noch kein Ordner gewählt',
   'settings.destination.recent': 'Zuletzt verwendete Ordner',
