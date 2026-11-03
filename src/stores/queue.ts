@@ -111,6 +111,12 @@ export const useQueueStore = defineStore('queue', () => {
     await guard(() => window.tuberx.setFormat(id, formatId))
   }
 
+  async function setAudioLanguage(id: string, code: string | null): Promise<void> {
+    const row = byId(id)
+    if (row) row.audioLanguage = code ?? undefined
+    await guard(() => window.tuberx.setAudioLanguage(id, code))
+  }
+
   async function setFormatAll(formatId: string): Promise<void> {
     await guard(() => window.tuberx.setFormatAll(formatId))
     await refresh()
@@ -196,6 +202,7 @@ export const useQueueStore = defineStore('queue', () => {
     remove,
     reorder,
     setFormat,
+    setAudioLanguage,
     setFormatAll,
     start,
     startAll,

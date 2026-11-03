@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { app } from 'electron'
 import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
+import { withAudioLanguage } from '../../shared/normalize'
 import { TuberDb } from '../db/database'
 import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
 import { convertVideo } from '../engine/transcode'
@@ -264,6 +265,14 @@ export class QueueManager extends EventEmitter {
     this.update(id, { formatId })
   }
 
+  setAudioLanguage(id: string, code: string | null) {
+    const row = this.rows.find((r) => r.id === id)
+    if (!row) return
+    // Only a dub this video offers. The original is the default track, so it needs no filter.
+    const offered = row.media?.audioLanguages?.find((l) => l.code === code)
+    this.update(id, { audioLanguage: offered && !offered.original ? offered.code : undefined })
+  }
+
   setFormatAll(formatId: string) {
     for (const r of this.rows) {
       if (!r.media || r.status === 'downloading' || r.status === 'converting') continue
@@ -383,8 +392,12 @@ export class QueueManager extends EventEmitter {
   private async runDownload(row: QueueRow) {
     const settings = this.getSettings()
     const media = row.media!
-    const format = media.formats.find((f) => f.id === row.formatId) ?? media.formats.find((f) => f.id === media.defaultFormatId)
-    if (!format) return void this.update(row.id, { status: 'failed', error: tm('error.noFormat') })
+    const base = media.formats.find((f) => f.id === row.formatId) ?? media.formats.find((f) => f.id === media.defaultFormatId)
+    if (!base) return void this.update(row.id, { status: 'failed', error: tm('error.noFormat') })
+    // A refetch can drop a dub; then the row is back on the default track, which is also what the picker shows.
+    const dub = media.audioLanguages?.find((l) => l.code === row.audioLanguage && !l.original)?.code
+    const format = withAudioLanguage(base, dub)
+    const language = format.id === base.id ? undefined : dub
 
     const force = this.redo.delete(row.id)
     const variants = { ...(row.downloadedVariants ?? {}) }
@@ -411,7 +424,8 @@ export class QueueManager extends EventEmitter {
         settings,
         signal: ac.signal,
         overwrite: p.overwrite,
-        nameTag: p.nameTag,
+        // A dub always says so in its name, so it can never collide with the same video in another language.
+        nameTag: [p.nameTag, language].filter(Boolean).join(' ') || undefined,
         onLog: (line) => engineLog(row.id, line),
         onProgress: (p) => {
           const r = this.rows.find((x) => x.id === row.id)
@@ -455,7 +469,7 @@ export class QueueManager extends EventEmitter {
         this.update(row.id, { status: 'skipped', outputPath: result.outputPath || undefined, progress: undefined })
       } else {
         // the plain name now holds this format; any other format that used the plain name was overwritten
-        if (!plan.nameTag) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && (collides === (id.startsWith('v')))) delete variants[id]
+        if (!plan.nameTag && !language) for (const id of Object.keys(variants)) if (variants[id] === '' && id !== format.id && !id.includes('@') && (collides === (id.startsWith('v')))) delete variants[id]
         variants[format.id] = plan.nameTag ?? ''
         dropLocalTemp(this.destinationFor(row, settings))
         this.update(row.id, { status: 'done', outputPath: result.outputPath, progress: undefined, downloadedVariants: variants })
@@ -551,7 +565,7 @@ const isVideoFile = (path: string) => /^\.(mp4|mkv|webm|mov|m4v|avi|flv|ts|3gp)$
 /** The quality suffix a keep-both download gave a file, if its name carries one. */
 function recognizedTag(path: string): string | undefined {
   const stem = basename(path, extname(path))
-  return / \[(\d+p(?: video only)?|4K(?: video only)?|best|video only|MP3|M4A|WAV|M4R)\]$/.exec(stem)?.[1]
+  return / \[(\d+p(?: video only)?|4K(?: video only)?|best|video only|MP3|M4A|WAV|M4R)(?: [A-Za-z0-9-]+)?\]$/.exec(stem)?.[1]
 }
 
 /** Keep the requested format when the media offers it, else fall back sensibly. */

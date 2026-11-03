@@ -33,9 +33,12 @@ export const PRESET_FORMATS: PresetFormat[] = [
 const isKey = (label: string): label is MessageKey => label.startsWith('format.')
 
 export function presetLabel(id: string): string {
-  const label = PRESET_FORMATS.find((f) => f.id === id)?.label
+  // "v:1080@fr" is v:1080 in a French dub.
+  const [base, language] = id.split('@')
+  const label = PRESET_FORMATS.find((f) => f.id === base)?.label
   if (!label) return id
-  return isKey(label) ? t(label) : label
+  const text = isKey(label) ? t(label) : label
+  return language ? `${text} · ${language}` : text
 }
 
 /** Labels the extractor produced for the fixed option ids, localized at render time; rung labels ("1080p MP4") pass through. */

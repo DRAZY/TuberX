@@ -9,6 +9,7 @@ const api: TuberXApi = {
   setFormat: (id, formatId) => invoke('queue:setFormat', id, formatId),
   reorderRows: (ids) => invoke('queue:reorder', ids),
   setFormatAll: (formatId) => invoke('queue:setFormatAll', formatId),
+  setAudioLanguage: (id, code) => invoke('queue:setAudioLanguage', id, code),
   startDownload: (ids) => invoke('queue:start', ids),
   cancelDownload: (id) => invoke('queue:cancel', id),
   pauseDownload: (id) => invoke('queue:pause', id),

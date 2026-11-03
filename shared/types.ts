@@ -45,6 +45,16 @@ export interface PlaylistEntry {
   uploader?: string
 }
 
+/** One audio language a video offers (dubbed YouTube videos, multi-audio streams). */
+export interface AudioLanguage {
+  /** The site's language code, e.g. "fr", "en-US", "zh-Hans" */
+  code: string
+  /** English name the extractor reported; the row shows a localized name when it can */
+  name: string
+  /** The video's own language rather than a dub */
+  original?: boolean
+}
+
 export interface MediaItem {
   id: string
   url: string
@@ -61,6 +71,8 @@ export interface MediaItem {
   entries?: PlaylistEntry[]
   formats: FormatOption[]
   subtitles: SubtitleTrack[]
+  /** Present only when there is a real choice: two or more languages. */
+  audioLanguages?: AudioLanguage[]
   chapters: Chapter[]
   /** Best-guess default option id */
   defaultFormatId: string
@@ -92,6 +104,8 @@ export interface QueueRow {
   status: RowStatus
   media?: MediaItem
   formatId?: string
+  /** The dub picked for this row. Unset: the site's default track. */
+  audioLanguage?: string
   destination: string
   progress?: DownloadProgress
   outputPath?: string
@@ -327,6 +341,8 @@ export interface TuberXApi {
   reorderRows(ids: string[]): Promise<void>
   setFormat(id: string, formatId: string): Promise<void>
   setFormatAll(formatId: string): Promise<void>
+  /** null goes back to the site's default audio track. */
+  setAudioLanguage(id: string, code: string | null): Promise<void>
   startDownload(ids: string[]): Promise<void>
   /** Stop: kill the transfer, discard partial files, return the row to Ready with the format picker live. */
   cancelDownload(id: string): Promise<void>
