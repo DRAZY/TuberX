@@ -6,8 +6,10 @@ import Icon from '@/components/Icon.vue'
 import IconButton from '@/components/IconButton.vue'
 import Spinner from '@/components/Spinner.vue'
 import Toggle from '@/components/Toggle.vue'
+import LanguageChecklist from '@/components/LanguageChecklist.vue'
+import { languageOptions } from '@/lib/languages'
 import { PRESET_FORMATS, presetLabel } from '@/lib/formats'
-import { t, tSplit } from '@/lib/i18n'
+import { locale, t, tSplit } from '@/lib/i18n'
 import { LOCALES } from '@shared/i18n'
 import { folderName } from '@/lib/paths'
 import { useSettingsStore } from '@/stores/settings'
@@ -50,7 +52,6 @@ const BROWSERS: { value: Settings['cookiesFromBrowser']; label: string }[] = [
 ]
 
 /** Free-text fields are edited locally and written on change, not on every keystroke. */
-const langs = ref(store.settings.subtitleLangs.join(', '))
 const proxy = ref(store.settings.proxy)
 const loginUsername = ref(store.settings.loginUsername)
 const rateLimit = ref(store.settings.rateLimitKbps)
@@ -71,12 +72,6 @@ async function clearPassword(): Promise<void> {
   loginPassword.value = ''
 }
 
-watch(
-  () => store.settings.subtitleLangs,
-  (v) => {
-    langs.value = v.join(', ')
-  },
-)
 watch(
   () => store.settings.proxy,
   (v) => {
@@ -99,13 +94,12 @@ function set<K extends keyof Settings>(key: K, value: Settings[K]): void {
   void store.update({ [key]: value } as Partial<Settings>)
 }
 
-function commitLangs(): void {
-  const list = langs.value
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  set('subtitleLangs', list.length ? list : ['en'])
-}
+/** Preferred audio: every listed language by name in the app's language, plus a saved code the list lacks. */
+const audioChoices = computed(() => {
+  const list = languageOptions(locale.value)
+  const saved = store.settings.preferredAudioLanguage
+  return saved && !list.some((l) => l.code === saved) ? [{ code: saved, name: saved }, ...list] : list
+})
 
 function commitProxy(): void {
   set('proxy', proxy.value.trim())
@@ -235,6 +229,20 @@ function commitProxy(): void {
             <option v-for="b in MP3_BITRATES" :key="b" :value="b">{{ t('settings.output.kbps', { n: b }) }}</option>
           </select>
         </label>
+
+        <label class="mt-2 block text-[12px]">
+          {{ t('settings.output.preferredAudio') }}
+          <select
+            class="tx-field mt-1"
+            data-testid="preferred-audio-language"
+            :value="store.settings.preferredAudioLanguage"
+            @change="set('preferredAudioLanguage', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">{{ t('settings.output.preferredAudioOriginal') }}</option>
+            <option v-for="l in audioChoices" :key="l.code" :value="l.code">{{ l.name }}</option>
+          </select>
+        </label>
+        <p class="mt-1 text-[10px] leading-snug text-tx-muted">{{ t('settings.output.preferredAudioHint') }}</p>
       </section>
 
       <!-- Subtitles -->
@@ -251,16 +259,13 @@ function commitProxy(): void {
           :hint="t('settings.subtitles.writeFilesHint')"
           @update:model-value="set('writeSubtitleFiles', $event)"
         />
-        <label class="mt-2 block text-[12px]">
+        <div class="mt-2 text-[12px]">
           {{ t('settings.subtitles.languages') }}
-          <input
-            v-model="langs"
-            class="tx-field mt-1"
-            :placeholder="t('settings.subtitles.langsPlaceholder')"
-            @change="commitLangs"
-            @blur="commitLangs"
+          <LanguageChecklist
+            :model-value="store.settings.subtitleLangs"
+            @update:model-value="set('subtitleLangs', $event)"
           />
-        </label>
+        </div>
       </section>
 
       <!-- Thumbnails -->

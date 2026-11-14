@@ -190,6 +190,8 @@ export interface Settings {
   embedSubtitles: boolean
   writeSubtitleFiles: boolean
   subtitleLangs: string[]
+  /** A dub to pick for new rows when the video has one in this language (base code, e.g. "hi"); '' keeps the original. */
+  preferredAudioLanguage: string
   skipIfExists: boolean
   /** Re-downloading in a different format: keep both files (quality added to the name) or replace the file */
   onConflict: 'keep-both' | 'replace'
@@ -244,6 +246,7 @@ export const DEFAULT_SETTINGS: Settings = {
   embedSubtitles: true,
   writeSubtitleFiles: false,
   subtitleLangs: ['en'],
+  preferredAudioLanguage: '',
   skipIfExists: true,
   onConflict: 'keep-both',
   proxy: '',

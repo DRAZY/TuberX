@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { app } from 'electron'
 import type { DownloadProgress, FormatOption, MediaItem, QueueRow, RowStatus, Settings } from '../../shared/types'
 import { urlKey } from '../../shared/urls'
-import { withAudioLanguage } from '../../shared/normalize'
+import { preferredDub, withAudioLanguage } from '../../shared/normalize'
 import { TuberDb } from '../db/database'
 import { download, dropLocalTemp, fetchMetadata } from '../engine/ytdlp'
 import { convertVideo } from '../engine/transcode'
@@ -215,8 +215,11 @@ export class QueueManager extends EventEmitter {
     try {
       const media: MediaItem = await fetchMetadata(row.url, this.getSettings(), { signal: ac.signal })
       const formatId = pickFormat(media, row.formatId)
+      // The preferred audio language applies once, when the row first learns what the video offers.
+      // A refetch (retry, sign-in check) keeps whatever the row has, including a deliberate "original".
+      const audioLanguage = row.media || row.audioLanguage ? row.audioLanguage : preferredDub(media.audioLanguages, this.getSettings().preferredAudioLanguage)
       this.botAttempts.delete(id)
-      this.update(id, { media, formatId, status: 'ready' })
+      this.update(id, { media, formatId, audioLanguage, status: 'ready' })
       if (this.autoStart.delete(id) && !media.isPlaylist) this.start([id])
     } catch (e) {
       if (ac.signal.aborted) return

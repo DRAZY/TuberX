@@ -1,5 +1,6 @@
 import type { AudioLanguage, Chapter, FormatOption, MediaItem, OutputKind, PlaylistEntry, SubtitleTrack } from './types'
 import { playlistUrlFromVideoUrl } from './urls'
+import { baseLanguage } from './languages'
 
 /** Loose shape of `yt-dlp --dump-single-json` — we only type what we read. */
 export interface YtDlpJson {
@@ -192,6 +193,19 @@ export function audioLanguages(formats: YtDlpFormat[] | undefined): AudioLanguag
   }
   if (found.size < 2) return []
   return [...found.values()].sort((a, b) => Number(!!b.original) - Number(!!a.original) || a.name.localeCompare(b.name))
+}
+
+/**
+ * The dub to pick for a new row when the user has a preferred audio language: an exact code first, then
+ * any variant of the same base language ("es" picks "es-419" or "es-ES", "pt" picks "pt-BR"). Nothing when
+ * the original is already in that language, or the video has no dub in it: the original stays.
+ */
+export function preferredDub(langs: AudioLanguage[] | undefined, preferred: string | undefined): string | undefined {
+  if (!preferred || !langs?.length) return undefined
+  const base = baseLanguage(preferred)
+  if (langs.some((l) => l.original && baseLanguage(l.code) === base)) return undefined
+  const dubs = langs.filter((l) => !l.original)
+  return (dubs.find((l) => l.code.toLowerCase() === preferred.toLowerCase()) ?? dubs.find((l) => baseLanguage(l.code) === base))?.code
 }
 
 /** What the picker and the engine accept as a language code. It ends up inside a format selector and a file name. */
