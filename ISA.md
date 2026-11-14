@@ -169,6 +169,7 @@ Why: users think in "1080p MP4" and "MP3", and the download must be fast and hon
 - [x] ISC-91: A video that offers several audio languages shows a language picker on its row for any output with audio; the pick decides the downloaded audio stream, and the file name carries the language.
 - [ ] ISC-92: A brand-new video on a normal Windows install fetches without "[Errno 13] Permission denied": every yt-dlp run has a writable temp path (mechanism reproduced and fixed on macOS, Windows check pending).
 - [x] ISC-93: A "Start with the window maximized" setting opens the window maximized, not fullscreen, and un-maximizing returns to the remembered size.
+- [ ] ISC-94: The language picker lists every audio language the video offers. Only the track yt-dlp marks original (language_preference 10, or "original" in its note) counts as the original; the dub YouTube plays by default for the viewer (preference 5) is a pickable dub. A muxed stream never adds a second spelling of a listed language (issue #18).
 - [ ] ISC-23: An "Apply to all" control sets the chosen format on every row and optionally on new rows.
 - [ ] ISC-24: A failed row stays in the list with the error reason and a working Retry.
 - [ ] ISC-25: The destination picker defaults to `Videos\TuberX` and remembers up to 15 custom folders.

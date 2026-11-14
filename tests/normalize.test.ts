@@ -128,6 +128,66 @@ describe('audio languages (issue #13)', () => {
     expect(audioLanguages([{ format_id: '140', acodec: 'aac' }, { format_id: '251', acodec: 'opus', language: null }])).toEqual([])
     expect(audioLanguages([{ format_id: '616', vcodec: 'vp9', acodec: 'none', language: 'fr' }, { format_id: '140', acodec: 'aac', language: 'en' }])).toEqual([])
   })
+  // Issue #18: YouTube marks one dub as the viewer's "default" (language_preference 5). That is not the original.
+  const audio = (id: string, language: string, pref: number, note: string) =>
+    ({ format_id: id, vcodec: 'none', acodec: 'mp4a.40.2', language, language_preference: pref, format_note: note })
+  const hindiOriginal = [
+    { format_id: '18', vcodec: 'avc1.42001E', acodec: 'mp4a.40.2', height: 360, language: 'en-US', language_preference: -1, format_note: '360p' },
+    audio('140-1', 'en-US', 5, 'English (US) (default), medium'),
+    audio('140-3', 'hi', 10, 'Hindi original (default), medium'),
+    audio('251-1', 'en-US', 5, 'English (US) (default), medium'),
+    audio('251-3', 'hi', 10, 'Hindi original, medium'),
+  ]
+
+  test('#18: a default dub is listed as a dub, the original stays the original (the reported video)', () => {
+    expect(audioLanguages(hindiOriginal)).toEqual([
+      { code: 'hi', name: 'Hindi', original: true },
+      { code: 'en-US', name: 'English (US)' },
+    ])
+  })
+  test('#18: the same with the roles swapped, whichever order the formats arrive in', () => {
+    const swapped = [audio('140-3', 'hi', 5, 'Hindi (default), medium'), audio('140-1', 'en', 10, 'English original (default), medium')]
+    const want = [{ code: 'en', name: 'English', original: true }, { code: 'hi', name: 'Hindi' }]
+    expect(audioLanguages(swapped)).toEqual(want)
+    expect(audioLanguages([...swapped].reverse())).toEqual(want)
+  })
+  test('#18: every dub of a many-language video is offered, regional and script variants kept apart', () => {
+    const many = [
+      audio('a', 'ja', 10, 'Japanese original (default), medium'),
+      audio('b', 'es-419', -1, 'Spanish (Latin America), medium'),
+      audio('c', 'es-ES', -1, 'Spanish (Spain), medium'),
+      audio('d', 'pt-BR', 5, 'Portuguese (Brazil) (default), medium'),
+      audio('e', 'zh-Hans', -1, 'Chinese (Simplified), medium'),
+      audio('f', 'zh-Hant', -1, 'Chinese (Traditional), medium'),
+      audio('g', 'ar', -1, 'Arabic, medium'),
+      audio('h', 'ko', -1, 'Korean, medium'),
+    ]
+    const got = audioLanguages(many)
+    expect(got.map((l) => l.code).sort()).toEqual(['ar', 'es-419', 'es-ES', 'ja', 'ko', 'pt-BR', 'zh-Hans', 'zh-Hant'])
+    expect(got.filter((l) => l.original).map((l) => l.code)).toEqual(['ja'])
+    expect(got[0].code).toBe('ja')
+  })
+  test("#18: YouTube's muxed 360p stream does not add a second spelling of a language", () => {
+    const withMuxed = [...dubbed, { format_id: '18', vcodec: 'avc1.42001E', acodec: 'mp4a.40.2', height: 360, language: 'en', language_preference: -1, format_note: '360p' }]
+    expect(audioLanguages(withMuxed).map((l) => l.code)).toEqual(['en-US', 'zh-Hans', 'fr'])
+  })
+  test('#18: a site that only serves one muxed stream per language still gets a picker', () => {
+    const muxedOnly = [
+      { format_id: 'fr', vcodec: 'avc1', acodec: 'mp4a.40.2', height: 720, language: 'fr', format_note: 'French' },
+      { format_id: 'de', vcodec: 'avc1', acodec: 'mp4a.40.2', height: 720, language: 'de', format_note: 'German' },
+    ]
+    expect(audioLanguages(muxedOnly).map((l) => l.code).sort()).toEqual(['de', 'fr'])
+  })
+  test('#18: no original flagged anywhere means nothing is called original, and descriptive audio is a plain choice', () => {
+    const noOriginal = [audio('a', 'en', 5, 'English (default), medium'), audio('b', 'fr', -1, 'French, medium'), audio('c', 'en-desc', -10, 'English descriptive, medium')]
+    const got = audioLanguages(noOriginal)
+    expect(got.some((l) => l.original)).toBe(false)
+    expect(got.map((l) => l.code).sort()).toEqual(['en', 'en-desc', 'fr'])
+  })
+  test('#18: the original is still found from its note when the preference is missing', () => {
+    expect(audioLanguages([audio('a', 'de', -1, 'German, medium'), { ...audio('b', 'it', 0, 'Italian original, medium'), language_preference: undefined }])[0]).toEqual({ code: 'it', name: 'Italian', original: true })
+  })
+
   test('a code that could break out of a selector is never offered or applied', () => {
     expect(audioLanguages([{ format_id: 'a', acodec: 'aac', language: 'en]+b' }, { format_id: 'b', acodec: 'aac', language: 'fr' }])).toEqual([])
     const v = option('v:best')
