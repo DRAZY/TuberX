@@ -7,6 +7,7 @@ import { aria2ExitCode, withoutAria2 } from './aria2'
 import { resolveTool, toolDirs } from './paths'
 import { bestEncoder, encoderArgs } from './encoders'
 import { inspect } from './transcode'
+import { subtitleMatches, subtitlePatterns } from '../../shared/languages'
 
 /**
  * The parallel engine for video and audio outputs.
@@ -194,8 +195,8 @@ export async function downloadFast(job: FastJob, ctx: FastContext): Promise<Fast
   const subs = async (): Promise<string[]> => {
     if (!wantSubs) return []
     const langs = job.settings.subtitleLangs.length ? job.settings.subtitleLangs : ['en']
-    const wanted = langs.flatMap((l) => [l, `${l}-*`])
-    const hasUserSub = job.media.subtitles.some((s) => !s.auto && langs.some((l) => s.lang === l || s.lang.startsWith(l + '-')))
+    const wanted = subtitlePatterns(langs)
+    const hasUserSub = job.media.subtitles.some((s) => !s.auto && subtitleMatches(s.lang, langs))
     const args = [...ctx.common, '--load-info-json', infoPath, '--skip-download', '--write-subs', ...(hasUserSub ? [] : ['--write-auto-subs']),
       '--sub-langs', wanted.join(','), '--convert-subs', 'srt', '--no-playlist', '-o', join(ctx.tempDir, `${stem}.%(ext)s`)]
     const res = await run(ctx.bin, args, { env: ctx.env, pathPrepend: toolDirs(), signal: job.signal, timeoutMs: 180000, onLine: (l) => job.onLog?.(l) }).done

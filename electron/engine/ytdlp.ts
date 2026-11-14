@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { BOT_CHECK, BotCheckError, TOKEN_CLIENTS, helperFailure, isYouTubeUrl } from './botcheck'
 import { aria2ExitCode, withoutAria2 } from './aria2'
 import { tempPathArgs } from './tempArgs'
+import { subtitleMatches, subtitlePatterns } from '../../shared/languages'
 import { basename } from 'node:path'
 import { run, type RunResult } from './run'
 import { app } from 'electron'
@@ -374,8 +375,8 @@ export async function download(job: DownloadJob): Promise<DownloadResult> {
   // --embed-subs removes the side files after embedding unless we also asked to keep them.
   if ((subsOnly || (format.kind === 'video' && (settings.embedSubtitles || settings.writeSubtitleFiles))) && job.media.subtitles.length) {
     const langs = settings.subtitleLangs.length ? settings.subtitleLangs : ['en']
-    const wanted = langs.flatMap((l) => [l, `${l}-*`])
-    const hasUserSub = job.media.subtitles.some((s) => !s.auto && langs.some((l) => s.lang === l || s.lang.startsWith(l + '-')))
+    const wanted = subtitlePatterns(langs)
+    const hasUserSub = job.media.subtitles.some((s) => !s.auto && subtitleMatches(s.lang, langs))
     // yt-dlp keeps the sidecar file only when --write-subs is given explicitly;
     // --embed-subs (and --write-auto-subs) alone fetch, embed and clean up.
     args.push('--sub-langs', wanted.join(','))
