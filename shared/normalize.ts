@@ -154,18 +154,40 @@ export function buildFormatOptions(formats: YtDlpFormat[] | undefined, hasVideo:
 }
 
 /**
- * The audio languages a video offers, original first. Empty unless there is a real choice. yt-dlp reports
- * the original track with a language_preference above the dubs and a note like
- * "English (US) original (default), medium"; a dub's note is "French, medium".
+ * yt-dlp's YouTube extractor ranks audio tracks with language_preference: 10 for the original, 5 for the
+ * track YouTube plays by default for this viewer (which can be a dub, and changes with the viewer), -1 for
+ * other dubs, -10 for descriptive audio. Only the original counts as original; "default" is just a dub.
+ */
+const ORIGINAL_LANGUAGE_PREFERENCE = 10
+
+/**
+ * The audio languages a video offers, original first. Empty unless there is a real choice. The original
+ * track has language_preference 10 and a note like "Hindi original (default), medium"; a dub's note is
+ * "French, medium" or "English (US) (default), medium" when it is the viewer's default.
+ *
+ * Languages come from audio-only streams when there are any. A muxed stream (YouTube's 360p "18") carries
+ * a language tag of its own, often a different spelling of one already listed ("en" next to "en-US"), and
+ * picking it would fetch that low-quality muxed file. Sites that only serve muxed streams per language
+ * still get a picker from those.
  */
 export function audioLanguages(formats: YtDlpFormat[] | undefined): AudioLanguage[] {
+  const tagged = (formats ?? []).filter(
+    (f) => f.language && f.acodec && f.acodec !== 'none' && AUDIO_LANGUAGE_CODE.test(f.language),
+  )
+  const audioOnly = tagged.filter((f) => !f.vcodec || f.vcodec === 'none')
   const found = new Map<string, AudioLanguage>()
-  for (const f of formats ?? []) {
-    if (!f.language || !f.acodec || f.acodec === 'none' || !AUDIO_LANGUAGE_CODE.test(f.language)) continue
-    const original = (f.language_preference ?? 0) > 0 || /\boriginal\b/i.test(f.format_note ?? '')
-    const name = (f.format_note ?? '').split(',')[0].replace(/\s+original\b.*$/i, '').trim() || f.language
-    const known = found.get(f.language)
-    if (!known) found.set(f.language, { code: f.language, name, ...(original ? { original } : {}) })
+  for (const f of audioOnly.length ? audioOnly : tagged) {
+    const code = f.language!
+    const original =
+      (f.language_preference ?? 0) >= ORIGINAL_LANGUAGE_PREFERENCE || /\boriginal\b/i.test(f.format_note ?? '')
+    const name =
+      (f.format_note ?? '')
+        .split(',')[0]
+        .replace(/\s*\((?:default)\)/gi, '')
+        .replace(/\s+original\b.*$/i, '')
+        .trim() || code
+    const known = found.get(code)
+    if (!known) found.set(code, { code, name, ...(original ? { original } : {}) })
     else if (original) known.original = true
   }
   if (found.size < 2) return []

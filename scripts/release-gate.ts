@@ -49,6 +49,9 @@ const CASES: Case[] = [
   { name: 'YouTube French dub, video', url: 'https://www.youtube.com/watch?v=0e3GPea1Tyg', format: 'v:360', ext: 'mp4', vcodec: /^h264$/, acodec: /^aac$/, cover: true, encode: 'never', audioLanguage: 'fr', expectAudio: 'fr' },
   { name: 'YouTube Chinese dub → M4A', url: 'https://www.youtube.com/watch?v=0e3GPea1Tyg', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either', audioLanguage: 'zh-Hans', expectAudio: 'zh-Hans' },
   { name: 'YouTube dubbed, default track', url: 'https://www.youtube.com/watch?v=0e3GPea1Tyg', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either', expectAudio: 'en-US' },
+  // Issue #18: a Hindi original whose English dub is YouTube's "default". The dub must be pickable and the original stays the default.
+  { name: 'YouTube Hindi original, default', url: 'https://www.youtube.com/watch?v=xNjw6sautZQ', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either', expectAudio: 'hi' },
+  { name: 'YouTube English "default" dub', url: 'https://www.youtube.com/watch?v=xNjw6sautZQ', format: 'a:m4a', ext: 'm4a', acodec: /^aac$/, cover: true, encode: 'either', audioLanguage: 'en-US', expectAudio: 'en-US' },
   { name: 'archive.org silent film', url: 'https://archive.org/details/Cops1922', format: 'v:360', ext: 'mp4', vcodec: /^(h264|theora|mpeg4)$/, acodec: undefined, cover: true, encode: 'either' },
 ]
 
