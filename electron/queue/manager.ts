@@ -13,6 +13,7 @@ import { updateEngine } from '../engine/updater'
 import { tm } from '../i18n'
 import { engineLog } from '../engine/log'
 import { BOT_RETRY_DELAYS_MS, isBotCheckError } from '../engine/botcheck'
+import { isUnavailableError } from '../../shared/unavailable'
 
 export interface QueueEvents {
   changed: (rows: QueueRow[]) => void
@@ -226,7 +227,7 @@ export class QueueManager extends EventEmitter {
       const msg = (e as Error).message
       if (isBotCheckError(e)) this.scheduleBotRetry(id, msg, () => void this.fetch(id))
       else if (await this.selfHeal(msg, id)) retry = true
-      else this.update(id, { status: 'failed', error: msg })
+      else this.update(id, { status: 'failed', error: msg, errorKind: isUnavailableError(msg) ? 'unavailable' : undefined })
     } finally {
       this.aborters.delete(id)
     }
@@ -504,7 +505,7 @@ export class QueueManager extends EventEmitter {
         this.scheduleBotRetry(row.id, msg, () => this.start([row.id]))
       } else if (await this.selfHeal(msg, row.id)) {
         this.update(row.id, { status: 'queued', error: undefined, progress: undefined }) // the engine changed underneath; one more go
-      } else this.update(row.id, { status: 'failed', error: msg, progress: undefined })
+      } else this.update(row.id, { status: 'failed', error: msg, errorKind: isUnavailableError(msg) ? 'unavailable' : undefined, progress: undefined })
     } finally {
       this.aborters.delete(row.id)
       this.active--

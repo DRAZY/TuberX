@@ -43,6 +43,8 @@ export interface PlaylistEntry {
   duration?: number
   thumbnail?: string
   uploader?: string
+  /** A placeholder for a video that can no longer be watched ("[Private video]", "[Deleted video]"). */
+  unavailable?: boolean
 }
 
 /** One audio language a video offers (dubbed YouTube videos, multi-audio streams). */
@@ -110,8 +112,11 @@ export interface QueueRow {
   progress?: DownloadProgress
   outputPath?: string
   error?: string
-  /** Set with `error` when the failure was YouTube's sign-in check, so the row can offer the network settings. */
-  errorKind?: 'botCheck'
+  /**
+   * Set with `error`: 'botCheck' when the failure was YouTube's sign-in check, so the row can offer the network
+   * settings; 'unavailable' when the video is gone for good (private, deleted, terminated), so the footer can clear them.
+   */
+  errorKind?: 'botCheck' | 'unavailable'
   /** An automatic retry is scheduled for this time (sign-in check); the row shows the countdown. */
   retryAt?: number
   retryAttempt?: number

@@ -1,6 +1,7 @@
 import type { AudioLanguage, Chapter, FormatOption, MediaItem, OutputKind, PlaylistEntry, SubtitleTrack } from './types'
 import { playlistUrlFromVideoUrl } from './urls'
 import { baseLanguage } from './languages'
+import { isUnavailableEntry } from './unavailable'
 
 /** Loose shape of `yt-dlp --dump-single-json` — we only type what we read. */
 export interface YtDlpJson {
@@ -285,6 +286,7 @@ export function normalizeMedia(json: YtDlpJson, requestedUrl: string): MediaItem
           duration: e.duration,
           thumbnail: pickThumbnail(e),
           uploader: e.uploader ?? e.channel,
+          ...(isUnavailableEntry(e.title, e.availability) ? { unavailable: true } : {}),
         }))
         .filter((e) => !!e.url)
     : undefined

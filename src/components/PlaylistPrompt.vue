@@ -20,7 +20,9 @@ const isPicker = computed(() => props.media.isPlaylist && (props.media.entries?.
 const entries = computed<PlaylistEntry[]>(() => props.media.entries ?? [])
 
 const search = ref('')
-const chosen = ref<Set<string>>(new Set(entries.value.map((e) => e.url)))
+// Private and deleted videos start unticked (#17); they can still be ticked by hand.
+const chosen = ref<Set<string>>(new Set(entries.value.filter((e) => !e.unavailable).map((e) => e.url)))
+const unavailableCount = computed(() => entries.value.filter((e) => e.unavailable).length)
 
 const visible = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -36,7 +38,7 @@ function toggle(url: string): void {
 }
 
 function selectAll(): void {
-  chosen.value = new Set(visible.value.map((e) => e.url))
+  chosen.value = new Set(visible.value.filter((e) => !e.unavailable).map((e) => e.url))
 }
 
 function selectNone(): void {
@@ -50,7 +52,7 @@ async function addSelected(): Promise<void> {
 }
 
 async function addAllToLater(): Promise<void> {
-  const urls = entries.value.map((e) => e.url)
+  const urls = entries.value.filter((e) => !e.unavailable).map((e) => e.url)
   ui.closePlaylist()
   await later.add(urls)
 }
@@ -79,7 +81,10 @@ async function subscribe(): Promise<void> {
     >
       <div class="shrink-0 border-b border-tx-border p-4">
         <h2 class="truncate text-sm font-semibold" :title="media.title">{{ media.title }}</h2>
-        <p class="mt-0.5 text-[11px] text-tx-muted">{{ entries.length === 1 ? t('playlist.countOne') : t('playlist.countMany', { n: entries.length }) }}</p>
+        <p class="mt-0.5 text-[11px] text-tx-muted">
+          {{ entries.length === 1 ? t('playlist.countOne') : t('playlist.countMany', { n: entries.length }) }}
+          <span v-if="unavailableCount" data-testid="playlist-unavailable-note">· {{ t('playlist.unavailableNote', { n: unavailableCount }) }}</span>
+        </p>
 
         <div class="mt-3 flex items-center gap-2">
           <div class="relative flex-1">
@@ -98,6 +103,7 @@ async function subscribe(): Promise<void> {
           v-for="entry in visible"
           :key="entry.url"
           class="flex cursor-default items-center gap-3 border-b border-tx-border px-4 py-2 hover:bg-tx-row/60"
+          :class="{ 'opacity-50': entry.unavailable }"
           @click="toggle(entry.url)"
         >
           <input
@@ -116,7 +122,8 @@ async function subscribe(): Promise<void> {
             <Icon v-else name="play" :size="14" class="text-tx-muted/60" />
           </div>
           <span class="min-w-0 flex-1 truncate text-[12px]" :title="entry.title">{{ entry.title }}</span>
-          <span class="shrink-0 text-[11px] text-tx-muted">{{ formatDuration(entry.duration) }}</span>
+          <span v-if="entry.unavailable" class="shrink-0 rounded border border-tx-border px-1.5 text-[10px] text-tx-muted">{{ t('playlist.unavailable') }}</span>
+          <span v-else class="shrink-0 text-[11px] text-tx-muted">{{ formatDuration(entry.duration) }}</span>
         </li>
         <li v-if="!visible.length" class="px-4 py-6 text-center text-[11px] text-tx-muted">
           {{ t('playlist.noMatch') }}

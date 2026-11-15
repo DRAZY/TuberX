@@ -17,9 +17,13 @@ export const useQueueStore = defineStore('queue', () => {
   const activeCount = computed(
     () => rows.value.filter((r) => r.status === 'downloading' || r.status === 'converting').length,
   )
-  const startableRows = computed(() => rows.value.filter((r) => STARTABLE.includes(r.status)))
+  /** Failed rows whose video is gone for good (private, deleted, terminated): no retry brings them back. */
+  const isUnavailable = (r: QueueRow) => r.status === 'failed' && r.errorKind === 'unavailable'
+  // Download All skips dead videos; each row's own Retry still works.
+  const startableRows = computed(() => rows.value.filter((r) => STARTABLE.includes(r.status) && !isUnavailable(r)))
   const hasStartable = computed(() => startableRows.value.length > 0)
   const finishedCount = computed(() => rows.value.filter((r) => r.status === 'done' || r.status === 'skipped').length)
+  const unavailableCount = computed(() => rows.value.filter(isUnavailable).length)
 
   const statusText = computed(() => {
     if (!count.value) return ''
@@ -97,6 +101,10 @@ export const useQueueStore = defineStore('queue', () => {
   /** Drop every finished row (done or skipped) from the list; files stay where they are. */
   async function clearFinished(): Promise<void> {
     await remove(rows.value.filter((r) => r.status === 'done' || r.status === 'skipped').map((r) => r.id))
+  }
+  /** Drop every row whose video is gone for good (#17). Rows that failed for a fixable reason stay. */
+  async function removeUnavailable(): Promise<void> {
+    await remove(rows.value.filter(isUnavailable).map((r) => r.id))
   }
   async function remove(ids: string[]): Promise<void> {
     if (!ids.length) return
@@ -191,6 +199,8 @@ export const useQueueStore = defineStore('queue', () => {
     hasStartable,
     finishedCount,
     clearFinished,
+    unavailableCount,
+    removeUnavailable,
     statusText,
     byId,
     isSelected,
