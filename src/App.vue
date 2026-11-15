@@ -327,6 +327,16 @@ onBeforeUnmount(() => {
       <button v-else-if="queue.finishedCount" type="button" class="tx-btn-ghost whitespace-nowrap" @click="queue.clearFinished()">
         {{ t('footer.clearFinished', { n: queue.finishedCount }) }}
       </button>
+      <button
+        v-if="!queue.selected.size && queue.unavailableCount"
+        type="button"
+        class="tx-btn-ghost whitespace-nowrap"
+        data-testid="remove-unavailable"
+        :title="t('footer.removeUnavailableTitle')"
+        @click="queue.removeUnavailable()"
+      >
+        {{ t('footer.removeUnavailable', { n: queue.unavailableCount }) }}
+      </button>
 
       <select
         class="h-7 max-w-[150px] rounded border border-tx-border bg-tx-bg px-2 text-xs text-tx-text outline-none transition-colors hover:border-tx-muted focus:border-tx-accent disabled:opacity-40"
